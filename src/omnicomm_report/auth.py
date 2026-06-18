@@ -9,6 +9,11 @@
 Пароли хранятся в `data/users.json` (gitignored) как PBKDF2-хеш с солью — не base64,
 в отличие от sandbox-хранилища паролей Omnicomm-клиентов. Это аутентификация САМОЙ
 платформы, не сторонней формы.
+
+Holding-слой: у пользователя есть `org_id` — узел `dim_org`, к которому он привязан.
+Доступ к данным считается по поддереву этого узла (см. `org.OrgTree.visible_scope`):
+руководитель ДЗО видит свою ДЗО + под-ДЗО + подрядчиков, но не соседей. admin —
+весь холдинг (org_id может быть пустым; доступ через all_access по роли).
 """
 
 from __future__ import annotations
@@ -48,20 +53,30 @@ def _save(users: dict[str, dict], path: str = DEFAULT_USERS_PATH) -> None:
 
 
 def list_users(path: str = DEFAULT_USERS_PATH) -> list[dict]:
-    """Список пользователей: [{username, role}] (без хешей)."""
-    return [{"username": u, "role": d.get("role", "manager")}
+    """Список пользователей: [{username, role, org_id}] (без хешей)."""
+    return [{"username": u, "role": d.get("role", "manager"),
+             "org_id": d.get("org_id")}
             for u, d in sorted(_load(path).items())]
 
 
 def create_user(username: str, password: str, role: str = "manager",
+                org_id: Optional[str] = None,
                 path: str = DEFAULT_USERS_PATH) -> bool:
-    """Создать/обновить пользователя. role ∈ ROLES. Возвращает успех."""
+    """Создать/обновить пользователя. role ∈ ROLES. `org_id` — узел `dim_org`,
+    к которому привязан пользователь (None для admin/руководителя холдинга).
+    При обновлении без нового org_id прежняя привязка сохраняется. Успех → True.
+    """
     username = (username or "").strip()
     if not username or not password or role not in ROLES:
         return False
     users = _load(path)
     salt = secrets.token_hex(16)
-    users[username] = {"role": role, "salt": salt, "hash": _hash(password, salt)}
+    rec = {"role": role, "salt": salt, "hash": _hash(password, salt)}
+    if org_id:
+        rec["org_id"] = org_id
+    elif username in users and users[username].get("org_id"):
+        rec["org_id"] = users[username]["org_id"]   # сохранить привязку при смене пароля
+    users[username] = rec
     _save(users, path)
     return True
 
@@ -85,6 +100,35 @@ def verify(username: str, password: str, path: str = DEFAULT_USERS_PATH) -> Opti
     return None
 
 
+def get_user(username: str, path: str = DEFAULT_USERS_PATH) -> Optional[dict]:
+    """{username, role, org_id} или None. Без пароля/хеша."""
+    u = _load(path).get((username or "").strip())
+    if not u:
+        return None
+    return {"username": (username or "").strip(),
+            "role": u.get("role", "manager"), "org_id": u.get("org_id")}
+
+
+def user_org(username: str, path: str = DEFAULT_USERS_PATH) -> Optional[str]:
+    """org_id, к которому привязан пользователь (None — нет привязки/admin)."""
+    u = _load(path).get((username or "").strip())
+    return u.get("org_id") if u else None
+
+
+def authenticate(username: str, password: str,
+                 path: str = DEFAULT_USERS_PATH) -> Optional[dict]:
+    """Проверить креды и вернуть {username, role, org_id} или None.
+
+    Удобная обёртка над `verify` для holding-входа: сразу отдаёт привязку к узлу,
+    чтобы вызывающий построил scope доступа (`org.OrgTree.visible_scope`).
+    """
+    role = verify(username, password, path)
+    if role is None:
+        return None
+    return {"username": (username or "").strip(), "role": role,
+            "org_id": user_org(username, path)}
+
+
 def ensure_admin(path: str = DEFAULT_USERS_PATH) -> Optional[str]:
     """Засеять админа при пустом хранилище. Пароль — из env ADMIN_PASSWORD или
     одноразово сгенерированный (возвращается ТОЛЬКО при создании, для показа).
@@ -92,7 +136,7 @@ def ensure_admin(path: str = DEFAULT_USERS_PATH) -> Optional[str]:
     if _load(path):
         return None
     pw = os.getenv("ADMIN_PASSWORD") or secrets.token_urlsafe(9)
-    create_user("admin", pw, "admin", path)
+    create_user("admin", pw, "admin", path=path)
     return pw
 
 

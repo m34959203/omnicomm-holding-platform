@@ -2,6 +2,27 @@
 
 > Чек-поинты по ходу, не в конце. Свежее — сверху.
 
+## 2026-06-18 — Milestone 3: дашборд на ДЗО + вход пользователей
+
+**Сделано (`dashboard.py`, расширен `auth.py`, `org.visible_scope`, `tests/test_dashboard.py`
+— 8 тестов; полный набор 151 зелёный):**
+- `dashboard.build_org_report(org_id, …)` — `FleetReport` на срез поддерева ДЗО,
+  `client_name`=имя организации. Переиспользует `analytics.analyze` → весь движок
+  (топливо/типы/нормы/графики) работает без изменений.
+- `dashboard.render_org_report` — графики + HTML/PPTX на ДЗО (smoke-тест HTML зелёный,
+  бизнес-инвариант «без сливов» держится).
+- `dashboard.render_for_scope` — рендер по всем ДЗО **в пределах scope пользователя**
+  (изоляция: пользователь Уранэнерго не отрендерит УМЗ; admin — все). `levels` ограничивает уровни.
+- `auth`: у пользователя `org_id` (привязка к узлу dim_org). `create_user(org_id=…)`,
+  `authenticate()→{username,role,org_id}`, `user_org`, `get_user`. Привязка сохраняется
+  при смене пароля.
+- `org.OrgTree.visible_scope(org_id, all_access=)` — scope доступа (admin=всё, иначе поддерево, fail-closed).
+
+**Гоча (поймана тестом):** добавление `org_id` 4-м параметром в `create_user` сломало
+внутренний вызов `ensure_admin("admin", pw, "admin", path)` — `path` уходил позиционно в
+`org_id`. Починено на `path=path`. Урок: новые параметры в середину сигнатуры → проверять
+позиционные вызовы.
+
 ## 2026-06-18 — Milestone 2: ингест по организациям + роллапы KPI
 
 **Сделано (`org.assign_org_ids`, новый `rollup.py`, `tests/test_rollup.py` — 6 тестов;

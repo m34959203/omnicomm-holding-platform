@@ -167,6 +167,19 @@ class OrgTree:
         """Видит ли viewer организацию target: target в поддереве viewer."""
         return target_org_id in self.subtree_ids(viewer_org_id)
 
+    def visible_scope(self, viewer_org_id: Optional[str], *,
+                      all_access: bool = False) -> set[str]:
+        """Множество org_id, доступных пользователю.
+
+        `all_access=True` (роль admin / руководитель холдинга) → весь справочник;
+        иначе — поддерево его узла. Без узла и без all_access — пусто (fail-closed).
+        """
+        if all_access:
+            return set(self.org_ids())
+        if not viewer_org_id:
+            return set()
+        return self.subtree_ids(viewer_org_id)
+
     # --- сериализация ---------------------------------------------------------
 
     def to_list(self) -> list[dict]:

@@ -56,6 +56,11 @@ python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx
 - `rollup.py` — роллапы KPI по иерархии: `rollup_kpi` (org_id→FleetKPI по ТС поддерева,
   переиспользует `analytics.compute_kpi`), `build_org_kpi_tree` (дерево `OrgKPI` для дашборда).
   ДЗО агрегирует все свои под-ДЗО (которых может быть несколько) и подрядчиков. Тесты — `test_rollup.py`.
+- `dashboard.py` — дашборд/отчёт на ДЗО: `build_org_report` (FleetReport на срез поддерева,
+  переиспользует `analytics.analyze`), `render_org_report` (графики+HTML/PPTX),
+  `render_for_scope` (рендер по всем ДЗО в пределах scope пользователя; изоляция). Тесты — `test_dashboard.py`.
+- `auth` (holding): у пользователя `org_id` (узел dim_org). `create_user(org_id=…)`,
+  `authenticate()`, `user_org`, `get_user`. Доступ = `org.OrgTree.visible_scope` (admin=всё, иначе поддерево).
 - `models.VehicleMetrics.org_id` — привязка ТС к узлу `dim_org`.
 
 ## Модули сверх MVP (см. docs/platform.md)
