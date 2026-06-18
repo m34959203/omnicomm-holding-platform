@@ -2,6 +2,23 @@
 
 > Чек-поинты по ходу, не в конце. Свежее — сверху.
 
+## 2026-06-18 — Milestone 4: end-to-end оркестратор `holding.py`
+
+**Сделано (`holding.py`, `tests/test_holding.py` — 6 тестов; полный набор 157 зелёный):**
+- `build_registry(tree_nodes, …)` — реестр из дерева Omnicomm + теги подрядчиков + сохранение.
+- `run(tree_nodes, vehicles, period, …)` → `HoldingRun(registry, kpi_tree, rendered,
+  assigned, unassigned)` — связывает всё: реестр → ингест `org_id` → роллапы → дашборды по ДЗО
+  в пределах scope. Флаг `render=False` = только данные (быстрый путь). `unassigned` —
+  диагностика ТС без узла в дереве.
+- `fetch_fleet(client, period)` / `run_from_client(...)` — забор из живого Omnicomm
+  (дерево + `data_loader.load_from_api` + `validator`), повторяет `__main__`. Импорты сети
+  внутри функций → holding-слой грузится в тестах без сетевых зависимостей.
+- Параметризован входом (дерево+ТС) → `run()` тестируется без аккаунта; изоляция scope и
+  рендер по ДЗО покрыты.
+
+**Документ памяти:** создан `docs/DEV_MEMORY.md` (живой снимок состояния для сессий),
+связан из README/CLAUDE.md.
+
 ## 2026-06-18 — Milestone 3: дашборд на ДЗО + вход пользователей
 
 **Сделано (`dashboard.py`, расширен `auth.py`, `org.visible_scope`, `tests/test_dashboard.py`

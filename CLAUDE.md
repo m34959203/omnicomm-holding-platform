@@ -60,6 +60,8 @@ python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx
 - `dashboard.py` — дашборд/отчёт на ДЗО: `build_org_report` (FleetReport на срез поддерева,
   переиспользует `analytics.analyze`), `render_org_report` (графики+HTML/PPTX),
   `render_for_scope` (рендер по всем ДЗО в пределах scope пользователя; изоляция). Тесты — `test_dashboard.py`.
+- `holding.py` — end-to-end оркестратор: `build_registry`, `run` (реестр→ингест→роллапы→
+  дашборды), `run_from_client`/`fetch_fleet` (забор из живого Omnicomm). `HoldingRun`. Тесты — `test_holding.py`.
 - `auth` (holding): у пользователя `org_id` (узел dim_org). `create_user(org_id=…)`,
   `authenticate()`, `user_org`, `get_user`. Доступ = `org.OrgTree.visible_scope` (admin=всё, иначе поддерево).
 - `models.VehicleMetrics.org_id` — привязка ТС к узлу `dim_org`.
