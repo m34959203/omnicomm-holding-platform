@@ -65,6 +65,9 @@ python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx
 - `track_clean.py` — чистка GPS-трека по физике (`clean_track` — телепорт-и-возврат по
   расстоянию/Δt; `reconcile_vehicle_speed` — правдоподобная max_speed + пометка). Замена окна
   по длительности из Power BI. Хук интеграции — `data_loader` где тянется трек. Тесты — `test_track_clean.py`.
+- `store.py` — SQLite star schema (`dim_org`+`vehicle_org`). `org.save/load_org_registry`
+  диспетчат по расширению: `.db`/`.sqlite`→SQLite, иначе JSON. Postgres — в `store._connect()`. Тесты — `test_store.py`.
+- `holding_app.py` (корень) — Streamlit holding-портал: вход по scope → дашборд ДЗО.
 - `auth` (holding): у пользователя `org_id` (узел dim_org). `create_user(org_id=…)`,
   `authenticate()`, `user_org`, `get_user`. Доступ = `org.OrgTree.visible_scope` (admin=всё, иначе поддерево).
 - `models.VehicleMetrics.org_id` — привязка ТС к узлу `dim_org`.

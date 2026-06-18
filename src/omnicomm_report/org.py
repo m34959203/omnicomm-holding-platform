@@ -307,6 +307,10 @@ def filter_vehicles_for_viewer(
 
 DEFAULT_ORG_REGISTRY = os.path.join("data", "org_registry.json")
 
+# Расширения → SQLite-бэкенд (`store.py`); иначе JSON. Диспетч прозрачен для
+# вызывающих (CLI `--registry`, holding_app): меняешь путь — меняешь хранилище.
+_SQLITE_EXT = (".db", ".sqlite", ".sqlite3")
+
 
 @dataclass
 class OrgRegistry:
@@ -317,6 +321,9 @@ class OrgRegistry:
 
 
 def save_org_registry(registry: OrgRegistry, path: str = DEFAULT_ORG_REGISTRY) -> str:
+    if path.lower().endswith(_SQLITE_EXT):
+        from . import store
+        return store.save_org_registry(registry, path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     payload = {
         "orgs": registry.tree.to_list(),
@@ -328,6 +335,9 @@ def save_org_registry(registry: OrgRegistry, path: str = DEFAULT_ORG_REGISTRY) -
 
 
 def load_org_registry(path: str = DEFAULT_ORG_REGISTRY) -> Optional[OrgRegistry]:
+    if path.lower().endswith(_SQLITE_EXT):
+        from . import store
+        return store.load_org_registry(path)
     if not os.path.exists(path):
         return None
     try:

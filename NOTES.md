@@ -2,6 +2,20 @@
 
 > Чек-поинты по ходу, не в конце. Свежее — сверху.
 
+## 2026-06-18 — Milestone 8: переход на БД (SQLite, star schema)
+
+**Сделано (`store.py`, диспетч в `org.py`, `tests/test_store.py` — 7 тестов; полный набор 177 зелёных):**
+- `store.py` — SQLite star schema: `dim_org(org_id,name,parent_id,level,type)` +
+  `vehicle_org(vehicle_id,org_id)` с индексами. `save/load_org_registry`, `init_db`.
+- **Прозрачный диспетч**: `org.save/load_org_registry` смотрят расширение пути —
+  `.db/.sqlite`→SQLite (`store`), иначе JSON. Весь стек (CLI `--registry x.db`,
+  `holding.build_registry`, портал) работает на БД **без изменений кода**.
+- Портал предпочитает `data/org_registry.db`, если есть, иначе JSON.
+- Бэкенд изолирован в `store._connect()` — Postgres подключится там же через DSN.
+- Тесты: round-trip, перезапись (полная замена), диспетч по расширению (магия `SQLite format 3`),
+  чужая/отсутствующая БД → None, build_registry→.db.
+- Решение SQLite vs Postgres (§10.9): **SQLite** — ноль инфраструктуры, один файл на dev/сервере/в тестах.
+
 ## 2026-06-18 — Milestone 7: Streamlit holding-портал (вход по scope)
 
 **Сделано (`holding_app.py`, `dashboard.accessible_orgs` + тест; полный набор 170 зелёных):**

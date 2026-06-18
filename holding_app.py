@@ -71,9 +71,11 @@ def _load_registry(path: str, mtime: float):
     return org_mod.load_org_registry(path)
 
 
-registry = None
-if os.path.exists(DEFAULT_ORG_REGISTRY):
-    registry = _load_registry(DEFAULT_ORG_REGISTRY, os.path.getmtime(DEFAULT_ORG_REGISTRY))
+# Предпочитаем SQLite-реестр, если он есть; иначе JSON (диспетч в org.load_org_registry).
+_REG_CANDIDATES = [os.path.join("data", "org_registry.db"), DEFAULT_ORG_REGISTRY]
+_reg_path = next((p for p in _REG_CANDIDATES if os.path.exists(p)), None)
+registry = (_load_registry(_reg_path, os.path.getmtime(_reg_path))
+            if _reg_path else None)
 
 with st.sidebar:
     st.markdown(f"**{USER}** · {'админ' if IS_ADMIN else 'ДЗО'}")
@@ -87,9 +89,9 @@ with st.sidebar:
 
 if registry is None:
     st.info("Реестр организаций не найден. Сначала выполните holding-прогон, "
-            "сохранив реестр:\n\n"
+            "сохранив реестр (SQLite или JSON):\n\n"
             "`python -m omnicomm_report holding --demo --preset last-week "
-            "--registry data/org_registry.json`")
+            "--registry data/org_registry.db`")
     st.stop()
 
 tree = registry.tree
