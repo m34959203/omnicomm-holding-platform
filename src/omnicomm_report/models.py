@@ -58,6 +58,7 @@ class VehicleMetrics:
     vehicle_id: str                       # UUID Omnicomm или ID терминала / строка из Excel
     name: str                             # госномер или наименование ТС
     group: Optional[str] = None
+    org_id: Optional[str] = None          # узел dim_org (holding-слой: ДЗО/под-ДЗО/подрядчик)
 
     # Эксплуатационные показатели
     mileage_km: Optional[float] = None            # пробег, км

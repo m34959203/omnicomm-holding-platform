@@ -46,6 +46,14 @@ python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx
 - GPS: `GET /ls/api/v1/reports/track/{terminal_id}?timeBegin&timeEnd` → точки `{lat,lon,speed,satellitesCount}`.
 - Демо-контур: `http://online.omnicomm.ru`, `rudemoru/rudemo123456`, service `omnicomm` (есть датчики надстройки у части ТС). Полное описание — `docs/platform.md`.
 
+## Holding-слой (новое в этой платформе — см. docs/holding-architecture.md)
+
+- `org.py` — `dim_org`: иерархия организаций (Холдинг→ДЗО→под-ДЗО→подрядчик),
+  построение из дерева ТС Omnicomm (`build_from_omnicomm_tree`), **row-level доступ
+  по поддереву** (`OrgTree.can_view`/`visible_org_ids`), маппинг ТС→org_id, JSON-реестр.
+  Конфиденциальность между ДЗО — `filter_vehicles_for_viewer` (fail-closed). Тесты — `test_org.py`.
+- `models.VehicleMetrics.org_id` — привязка ТС к узлу `dim_org`.
+
 ## Модули сверх MVP (см. docs/platform.md)
 
 - `loading.py` — «Работа на погрузке» (мусоровозы): авто-источник sensor→rpm→none + GPS-кластеры.
