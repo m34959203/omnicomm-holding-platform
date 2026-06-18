@@ -5,6 +5,7 @@
 Примеры:
     python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx --client "ООО Пример"
     python -m omnicomm_report --source api --demo --from 2026-05-01 --to 2026-05-31
+    python -m omnicomm_report holding --demo --from 2026-05-01 --to 2026-05-31 --fuel-price 320
 """
 
 from __future__ import annotations
@@ -16,9 +17,10 @@ import sys
 import tempfile
 from datetime import datetime, time, timezone
 
-from . import analytics, charts, data_loader, history, norms, report_builder, validator
+from . import analytics, charts, data_loader, history, holding, norms, report_builder, validator
 from .config import DEFAULT_FUEL_PRICE_KZT, Settings, load_env_file
 from .models import ReportPeriod
+from .org import OrgLevel
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("omnicomm_report")
@@ -222,9 +224,97 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- Подкоманда `holding`: прогон по холдингу (дашборды на каждое ДЗО) --------
+
+_LEVEL_MAP = {
+    "holding": OrgLevel.HOLDING, "dzo": OrgLevel.DZO,
+    "sub_dzo": OrgLevel.SUB_DZO, "contractor": OrgLevel.CONTRACTOR,
+}
+
+
+def _parse_levels(s: str | None):
+    """`"dzo,holding"` → кортеж OrgLevel; пусто/None → None (все уровни с ТС)."""
+    if not s:
+        return None
+    out = [_LEVEL_MAP[t.strip().lower()] for t in s.split(",")
+           if t.strip().lower() in _LEVEL_MAP]
+    return tuple(out) or None
+
+
+def _holding_period(args: argparse.Namespace) -> ReportPeriod:
+    if args.preset:
+        return _preset_period(args.preset)
+    if not (args.date_from and args.date_to):
+        raise SystemExit("Holding: укажите --from и --to (YYYY-MM-DD) или --preset")
+    return ReportPeriod(
+        start=_parse_date(args.date_from),
+        end=datetime.combine(_parse_date(args.date_to).date(), time.max, tzinfo=timezone.utc),
+    )
+
+
+def build_holding_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="omnicomm_report holding",
+        description="Holding-прогон: один аккаунт Omnicomm → дашборды на каждое ДЗО",
+    )
+    p.add_argument("--demo", action="store_true", help="демо-контур Omnicomm (http)")
+    p.add_argument("--from", dest="date_from", help="начало периода YYYY-MM-DD")
+    p.add_argument("--to", dest="date_to", help="конец периода YYYY-MM-DD")
+    p.add_argument("--preset", choices=["last-day", "last-week", "last-month"],
+                   help="готовый период для cron (перекрывает --from/--to)")
+    p.add_argument("--outdir", default="output/holding", help="каталог дашбордов по ДЗО")
+    p.add_argument("--fuel-price", type=float, default=DEFAULT_FUEL_PRICE_KZT,
+                   dest="fuel_price", help="цена топлива ₸/л (0 = без денег)")
+    p.add_argument("--registry", help="путь сохранить реестр организаций (org_registry.json)")
+    p.add_argument("--contractors", help="org_id подрядчиков через запятую (пометить тегом)")
+    p.add_argument("--levels", help="уровни рендера: holding,dzo,sub_dzo,contractor "
+                                    "(через запятую; пусто = все узлы с ТС)")
+    p.add_argument("--pptx", action="store_true", help="рендерить .pptx (по умолч. только HTML)")
+    p.add_argument("--no-html", action="store_true", dest="no_html",
+                   help="не рендерить HTML")
+    p.add_argument("--data-only", action="store_true", dest="data_only",
+                   help="только реестр+ингест+роллапы, без отрисовки дашбордов")
+    return p
+
+
+def run_holding(args: argparse.Namespace) -> int:
+    load_env_file()
+    period = _holding_period(args)
+    settings = Settings.from_env(demo=args.demo)
+    from .api_client import OmnicommClient
+
+    client = OmnicommClient(settings)
+    client.login()
+    contractors = ([c.strip() for c in args.contractors.split(",") if c.strip()]
+                   if args.contractors else None)
+    log.info("Holding-прогон за %s", period.human())
+    result = holding.run_from_client(
+        client, period,
+        fuel_price_kzt=args.fuel_price, out_dir=args.outdir,
+        contractor_org_ids=contractors, registry_path=args.registry,
+        levels=_parse_levels(args.levels), render=not args.data_only,
+        html=not args.no_html, pptx=args.pptx,
+    )
+    log.info("Организаций в реестре: %d; ТС привязано: %d; без узла в дереве: %d",
+             len(result.registry.tree), result.assigned, len(result.unassigned))
+    if result.unassigned:
+        log.warning("ТС вне дерева аккаунта (%d): %s%s", len(result.unassigned),
+                    ", ".join(result.unassigned[:10]),
+                    " …" if len(result.unassigned) > 10 else "")
+    for oid, paths in result.rendered.items():
+        node = result.registry.tree.get(oid)
+        log.info("Дашборд «%s»: %s", node.name if node else oid,
+                 ", ".join(paths.values()))
+    if not args.data_only and not result.rendered:
+        log.warning("Дашборды не сформированы — нет ТС в выбранных уровнях/scope")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    return run(args)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "holding":
+        return run_holding(build_holding_parser().parse_args(argv[1:]))
+    return run(build_parser().parse_args(argv))
 
 
 if __name__ == "__main__":

@@ -2,6 +2,19 @@
 
 > Чек-поинты по ходу, не в конце. Свежее — сверху.
 
+## 2026-06-18 — Milestone 5: CLI-подкоманда `holding`
+
+**Сделано (`__main__.py`: `build_holding_parser`/`run_holding`/`_parse_levels`/
+`_holding_period` + маршрутизация в `main()`; `tests/test_holding_cli.py` — 5 тестов;
+полный набор 162 зелёных):**
+- `python -m omnicomm_report holding --demo --from … --to … --fuel-price 320` —
+  прогон холдинга из терминала через `holding.run_from_client`.
+- Флаги: `--levels` (holding,dzo,sub_dzo,contractor), `--contractors` (теги org_id),
+  `--registry` (сохранить реестр), `--data-only` (без рендера), `--pptx`, `--no-html`.
+- **Подкоманда без subparsers** — маршрутизация по `argv[0]=="holding"` в `main()`,
+  существующий single-client CLI нетронут (ноль регрессий). `--help` работает.
+- Гоча в тесте: `setdefault(...) or 0` возвращал Namespace (truthy), не 0 → заменил на явные функции.
+
 ## 2026-06-18 — Milestone 4: end-to-end оркестратор `holding.py`
 
 **Сделано (`holding.py`, `tests/test_holding.py` — 6 тестов; полный набор 157 зелёный):**

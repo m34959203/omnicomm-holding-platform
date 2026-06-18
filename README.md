@@ -44,6 +44,24 @@
 - Конвейер и контракт данных — [docs/architecture.md](docs/architecture.md).
 - Методология расчётов — [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
 
+## Запуск holding-прогона
+
+Один аккаунт Omnicomm → дашборды на каждое ДЗО (когда будет учётка — креды в `.env`):
+
+```bash
+# демо-контур, период, цена топлива для денежной оценки
+python -m omnicomm_report holding --demo --from 2026-05-01 --to 2026-05-31 --fuel-price 320
+
+# только данные (реестр + ингест + роллапы), без отрисовки
+python -m omnicomm_report holding --demo --preset last-week --data-only --registry data/org_registry.json
+
+# рендер только на уровне ДЗО, пометить подрядчиков
+python -m omnicomm_report holding --from 2026-05-01 --to 2026-05-31 --levels dzo --contractors org123,org456
+```
+
+Прогон: дерево ТС Omnicomm → `dim_org` → ингест `org_id` → роллапы KPI → дашборды по ДЗО
+(в `--outdir`, по умолчанию `output/holding/<дзо>/`). См. `holding.run_from_client`.
+
 ## Статус
 
 🚧 Инициализация платформы. Движок-фундамент перенесён из `omnicomm-fleet-report`; holding-слой в разработке — см. [NOTES.md](NOTES.md).
