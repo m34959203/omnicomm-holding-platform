@@ -52,6 +52,10 @@ python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx
   построение из дерева ТС Omnicomm (`build_from_omnicomm_tree`), **row-level доступ
   по поддереву** (`OrgTree.can_view`/`visible_org_ids`), маппинг ТС→org_id, JSON-реестр.
   Конфиденциальность между ДЗО — `filter_vehicles_for_viewer` (fail-closed). Тесты — `test_org.py`.
+- `org.assign_org_ids` — ингест: проставить `org_id` ТС из маппинга реестра.
+- `rollup.py` — роллапы KPI по иерархии: `rollup_kpi` (org_id→FleetKPI по ТС поддерева,
+  переиспользует `analytics.compute_kpi`), `build_org_kpi_tree` (дерево `OrgKPI` для дашборда).
+  ДЗО агрегирует все свои под-ДЗО (которых может быть несколько) и подрядчиков. Тесты — `test_rollup.py`.
 - `models.VehicleMetrics.org_id` — привязка ТС к узлу `dim_org`.
 
 ## Модули сверх MVP (см. docs/platform.md)

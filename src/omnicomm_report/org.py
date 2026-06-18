@@ -123,6 +123,12 @@ class OrgTree:
         return [o for o in self._orgs.values()
                 if not o.parent_id or o.parent_id not in self._orgs]
 
+    def org_ids(self) -> list[str]:
+        return list(self._orgs.keys())
+
+    def all_orgs(self) -> list[Org]:
+        return list(self._orgs.values())
+
     def ancestors(self, org_id: str) -> list[Org]:
         """Цепочка родителей от прямого родителя до корня (без самого узла)."""
         chain: list[Org] = []
@@ -233,6 +239,31 @@ def apply_contractor_tags(tree: OrgTree, contractor_org_ids: Iterable[str]) -> N
         if org:
             org.type = OrgType.CONTRACTOR
             org.level = OrgLevel.CONTRACTOR
+
+
+# --- Ингест: привязка ТС к организациям --------------------------------------
+
+def assign_org_ids(
+    vehicles: list,
+    vehicle_org: dict[str, str],
+    *,
+    overwrite: bool = False,
+) -> int:
+    """Проставить `org_id` каждому ТС из маппинга реестра (ингест по организациям).
+
+    `vehicle_org[vehicle_id] = org_id` (берётся из `OrgRegistry.vehicle_org`).
+    Уже привязанные ТС не трогаем, если `overwrite=False`. Возвращает число
+    проставленных привязок.
+    """
+    n = 0
+    for v in vehicles:
+        if getattr(v, "org_id", None) and not overwrite:
+            continue
+        oid = vehicle_org.get(getattr(v, "vehicle_id", None))
+        if oid:
+            v.org_id = oid
+            n += 1
+    return n
 
 
 # --- Применение доступа к ТС --------------------------------------------------
