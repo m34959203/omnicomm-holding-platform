@@ -18,7 +18,27 @@ from typing import Optional
 
 from . import analytics, charts, report_builder
 from .models import FleetReport, ReportPeriod
-from .org import OrgLevel, OrgTree
+from .org import Org, OrgLevel, OrgTree
+
+
+def accessible_orgs(
+    tree: OrgTree,
+    *,
+    org_id: Optional[str],
+    all_access: bool = False,
+    levels: Optional[tuple[OrgLevel, ...]] = None,
+) -> list[Org]:
+    """Организации, которые пользователь вправе открыть (для UI-выбора).
+
+    admin/руководитель холдинга (`all_access`) — весь справочник; иначе — поддерево
+    его узла. `levels` ограничивает уровни (напр. только `DZO`). Сортировка —
+    по уровню, затем по имени.
+    """
+    ids = tree.visible_scope(org_id, all_access=all_access)
+    orgs = [tree.get(i) for i in ids if tree.get(i)]
+    if levels:
+        orgs = [o for o in orgs if o.level in levels]
+    return sorted(orgs, key=lambda o: (o.level.value, o.name))
 
 
 def _slug(s: str) -> str:

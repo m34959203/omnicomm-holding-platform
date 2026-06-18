@@ -133,6 +133,22 @@ def test_render_org_report_html_smoke(tmp_path):
         assert bad not in html.lower()
 
 
+def test_accessible_orgs_user_vs_admin():
+    tree, _ = _build()
+    # рядовой пользователь ДЗО — только своё поддерево
+    ids = {o.org_id for o in dashboard.accessible_orgs(tree, org_id="uran")}
+    assert ids == {"uran", "tfo", "shfo"}
+    assert "umz" not in ids
+    # admin — весь справочник
+    ids_admin = {o.org_id for o in dashboard.accessible_orgs(
+        tree, org_id=None, all_access=True)}
+    assert ids_admin == set(tree.org_ids())
+    # фильтр по уровню ДЗО
+    dzo = dashboard.accessible_orgs(tree, org_id=None, all_access=True,
+                                    levels=(OrgLevel.DZO,))
+    assert {o.org_id for o in dzo} == {"uran", "umz"}
+
+
 def test_render_for_scope_isolation(tmp_path):
     tree, vmap = _build()
     vehicles = _vehicles()

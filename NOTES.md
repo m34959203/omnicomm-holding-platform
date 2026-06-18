@@ -2,6 +2,18 @@
 
 > Чек-поинты по ходу, не в конце. Свежее — сверху.
 
+## 2026-06-18 — Milestone 7: Streamlit holding-портал (вход по scope)
+
+**Сделано (`holding_app.py`, `dashboard.accessible_orgs` + тест; полный набор 170 зелёных):**
+- `holding_app.py` (корень репо, `streamlit run holding_app.py`): логин → `auth.authenticate`
+  отдаёт `{role, org_id}` → пользователь видит в выпадающем списке **только свои организации**
+  (поддерево; admin — все). Выбор ДЗО → период/цена → дашборд организации (HTML inline + скачать).
+- **Конфиденциальность на входе**: список ограничен `dashboard.accessible_orgs`, и перед
+  рендером доступ ПЕРЕПРОВЕРЯЕТСЯ (`tree.can_view`) — UI-ограничение само по себе не защита.
+- Источник иерархии — сохранённый `data/org_registry.json` (пишет `holding … --registry`);
+  данные ТС тянутся из Omnicomm по периоду (.env). Без реестра — подсказка как сгенерировать.
+- `dashboard.accessible_orgs(tree, org_id, all_access, levels)` — тестируемая логика выбора (+1 тест).
+
 ## 2026-06-18 — Milestone 6: чистка GPS-выбросов по физике
 
 **Сделано (`track_clean.py`, `tests/test_track_clean.py` — 7 тестов; полный набор 169 зелёных):**
