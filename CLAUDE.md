@@ -62,6 +62,9 @@ python -m omnicomm_report --source excel --input samples/fleet_sample.xlsx
   `render_for_scope` (рендер по всем ДЗО в пределах scope пользователя; изоляция). Тесты — `test_dashboard.py`.
 - `holding.py` — end-to-end оркестратор: `build_registry`, `run` (реестр→ингест→роллапы→
   дашборды), `run_from_client`/`fetch_fleet` (забор из живого Omnicomm). `HoldingRun`. Тесты — `test_holding.py`.
+- `track_clean.py` — чистка GPS-трека по физике (`clean_track` — телепорт-и-возврат по
+  расстоянию/Δt; `reconcile_vehicle_speed` — правдоподобная max_speed + пометка). Замена окна
+  по длительности из Power BI. Хук интеграции — `data_loader` где тянется трек. Тесты — `test_track_clean.py`.
 - `auth` (holding): у пользователя `org_id` (узел dim_org). `create_user(org_id=…)`,
   `authenticate()`, `user_org`, `get_user`. Доступ = `org.OrgTree.visible_scope` (admin=всё, иначе поддерево).
 - `models.VehicleMetrics.org_id` — привязка ТС к узлу `dim_org`.
