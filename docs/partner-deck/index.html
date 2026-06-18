@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Финансовый аудит автопарка под вашим брендом — партнёрская программа для дилеров Omnicomm</title>
+<meta name="description" content="Аналитическая надстройка над Omnicomm: ежемесячный управленческий отчёт в тенге, программа экономии и счётчик подтверждённой экономии. White-label для дилеров Omnicomm в Казахстане.">
+<style>
+  :root{
+    --blue:#2F5C8F;
+    --blue-dark:#234668;
+    --blue-pale:#EAF0F7;
+    --amber:#C8893F;
+    --amber-pale:#FAF3E8;
+    --gray-blue:#7E93AB;
+    --ink:#2B2B2B;
+    --line:#D9E1EA;
+    --bg:#FFFFFF;
+    --serif:Georgia,"Playfair Display","Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:var(--sans);
+    color:var(--ink);
+    background:var(--bg);
+    font-size:17px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .deck{
+    height:100vh;
+    overflow-y:auto;
+    scroll-snap-type:y mandatory;
+  }
+  section.slide{
+    min-height:100vh;
+    scroll-snap-align:start;
+    display:flex;
+    align-items:center;
+    padding:64px 7vw;
+    position:relative;
+    border-bottom:1px solid var(--line);
+  }
+  .inner{
+    max-width:1180px;
+    margin:0 auto;
+    width:100%;
+  }
+  /* ---------- typography ---------- */
+  .kicker{
+    font-family:var(--sans);
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--gray-blue);
+    margin-bottom:18px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .kicker::before{
+    content:"";
+    display:inline-block;
+    width:34px;
+    height:1px;
+    background:var(--amber);
+  }
+  .slide-num{
+    position:absolute;
+    top:48px;
+    right:7vw;
+    font-family:var(--serif);
+    font-size:15px;
+    color:var(--gray-blue);
+    letter-spacing:.08em;
+  }
+  h1,h2,.big-num{font-family:var(--serif);font-weight:400;color:var(--blue-dark);}
+  h1{font-size:clamp(38px,4.6vw,64px);line-height:1.08;letter-spacing:-.01em;}
+  h2{font-size:clamp(28px,3.2vw,44px);line-height:1.12;margin-bottom:26px;letter-spacing:-.005em;}
+  .lead{
+    font-size:clamp(18px,1.5vw,22px);
+    color:#4A5A6B;
+    max-width:42em;
+    margin-top:22px;
+  }
+  .big-num{
+    font-size:clamp(54px,6vw,92px);
+    line-height:1;
+    color:var(--blue);
+    letter-spacing:-.015em;
+    font-variant-numeric:lining-nums;
+  }
+  .big-num.amber{color:var(--amber);}
+  .num-cap{
+    font-size:14px;
+    color:var(--gray-blue);
+    margin-top:10px;
+    max-width:24em;
+  }
+  /* ---------- layout helpers ---------- */
+  .cols{display:grid;gap:48px;align-items:center;}
+  .cols-2{grid-template-columns:1fr 1fr;}
+  .cols-55{grid-template-columns:1.15fr .85fr;}
+  .cols-45{grid-template-columns:.85fr 1.15fr;}
+  .stat-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:36px;
+    margin-top:44px;
+  }
+  .tick-list{list-style:none;margin-top:28px;}
+  .tick-list li{
+    padding:13px 0 13px 34px;
+    position:relative;
+    border-top:1px solid var(--line);
+    font-size:16.5px;
+  }
+  .tick-list li:last-child{border-bottom:1px solid var(--line);}
+  .tick-list li::before{
+    content:"—";
+    position:absolute;
+    left:0;
+    top:13px;
+    color:var(--amber);
+    font-weight:600;
+  }
+  .tick-list strong{color:var(--blue-dark);font-weight:600;}
+  /* ---------- badge ---------- */
+  .badge{
+    display:inline-block;
+    border:1px solid var(--blue);
+    color:var(--blue);
+    font-size:12.5px;
+    font-weight:600;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    padding:9px 18px;
+    border-radius:3px;
+    margin-bottom:34px;
+    background:var(--blue-pale);
+  }
+  /* ---------- browser frame ---------- */
+  .browser{
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow:0 18px 50px -18px rgba(35,70,104,.28),0 4px 14px -6px rgba(35,70,104,.14);
+    background:#fff;
+    cursor:zoom-in;
+    transition:transform .25s ease,box-shadow .25s ease;
+  }
+  .browser:hover{
+    transform:translateY(-3px);
+    box-shadow:0 26px 60px -18px rgba(35,70,104,.36),0 6px 18px -6px rgba(35,70,104,.18);
+  }
+  .browser .bar{
+    height:32px;
+    background:#F2F5F9;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    padding:0 12px;
+    gap:6px;
+  }
+  .browser .bar i{
+    width:9px;height:9px;border-radius:50%;
+    background:#CBD6E2;display:inline-block;
+  }
+  .browser .bar .url{
+    margin-left:10px;
+    font-size:11px;
+    color:var(--gray-blue);
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:2px 10px;
+    flex:1;
+    max-width:340px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .browser img{display:block;width:100%;height:auto;}
+  .shot-cap{
+    font-size:13px;
+    color:var(--gray-blue);
+    margin-top:12px;
+    text-align:center;
+  }
+  /* ---------- hero ---------- */
+  #s1{background:linear-gradient(180deg,#FFFFFF 0%,var(--blue-pale) 100%);border-bottom:3px solid var(--blue);}
+  #s1 .inner{text-align:left;}
+  .hero-rule{
+    width:72px;height:3px;background:var(--amber);
+    margin:34px 0 30px;
+  }
+  .hero-meta{
+    margin-top:54px;
+    display:flex;
+    gap:48px;
+    flex-wrap:wrap;
+    border-top:1px solid var(--line);
+    padding-top:26px;
+  }
+  .hero-meta div{font-size:14px;color:var(--gray-blue);}
+  .hero-meta strong{display:block;color:var(--blue-dark);font-size:16px;font-weight:600;margin-bottom:2px;}
+  /* ---------- problem cards ---------- */
+  .prob-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:28px;
+    margin-top:42px;
+  }
+  .prob-card{
+    border:1px solid var(--line);
+    border-top:3px solid var(--gray-blue);
+    padding:28px 26px 30px;
+    background:#fff;
+  }
+  .prob-card .pn{
+    font-family:var(--serif);
+    font-size:34px;
+    color:var(--gray-blue);
+    margin-bottom:14px;
+  }
+  .prob-card h3{
+    font-size:17px;
+    font-weight:600;
+    color:var(--blue-dark);
+    margin-bottom:10px;
+    line-height:1.3;
+  }
+  .prob-card p{font-size:15px;color:#4A5A6B;}
+  .verdict{
+    margin-top:38px;
+    border-left:3px solid var(--amber);
+    background:var(--amber-pale);
+    padding:22px 28px;
+    font-family:var(--serif);
+    font-size:clamp(18px,1.7vw,23px);
+    color:var(--blue-dark);
+    max-width:46em;
+  }
+  /* ---------- baskets / money ---------- */
+  .baskets{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:36px;}
+  .basket{
+    border:1px solid var(--line);
+    padding:24px 22px;
+    background:#fff;
+  }
+  .basket .bt{
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--gray-blue);
+    margin-bottom:10px;
+  }
+  .basket .bv{
+    font-family:var(--serif);
+    font-size:26px;
+    color:var(--blue);
+    margin-bottom:8px;
+  }
+  .basket p{font-size:14px;color:#4A5A6B;}
+  /* ---------- counter section ---------- */
+  #s5{background:var(--blue-dark);color:#E7EEF6;border-bottom:3px solid var(--amber);}
+  #s5 .kicker{color:#9FB4CB;}
+  #s5 .kicker::before{background:var(--amber);}
+  #s5 h2{color:#fff;}
+  #s5 .lead{color:#B9C8D9;}
+  #s5 .slide-num{color:#7E93AB;}
+  .counter-flow{
+    display:grid;
+    grid-template-columns:1fr auto 1fr auto 1fr;
+    gap:18px;
+    align-items:stretch;
+    margin:46px 0 40px;
+  }
+  .cf-step{
+    border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.05);
+    padding:26px 24px;
+    border-radius:4px;
+  }
+  .cf-step .ct{
+    font-family:var(--serif);
+    font-size:20px;
+    color:#fff;
+    margin-bottom:10px;
+  }
+  .cf-step p{font-size:14.5px;color:#B9C8D9;}
+  .cf-arrow{
+    align-self:center;
+    font-family:var(--serif);
+    font-size:30px;
+    color:var(--amber);
+  }
+  .counter-display{
+    border:1px solid var(--amber);
+    background:rgba(200,137,63,.10);
+    border-radius:4px;
+    padding:34px 40px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:30px;
+    flex-wrap:wrap;
+  }
+  .counter-display .cd-num{
+    font-family:var(--serif);
+    font-size:clamp(40px,4.6vw,68px);
+    color:var(--amber);
+    line-height:1;
+    white-space:nowrap;
+  }
+  .counter-display .cd-text{font-size:15.5px;color:#D7E1EC;max-width:34em;}
+  .counter-display .cd-text strong{color:#fff;}
+  .moat{
+    margin-top:34px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:28px;
+  }
+  .moat div{
+    border-top:1px solid rgba(255,255,255,.22);
+    padding-top:16px;
+    font-size:15.5px;
+    color:#B9C8D9;
+  }
+  .moat strong{color:#fff;font-weight:600;}
+  /* ---------- case ---------- */
+  .case-stats{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:0;
+    border:1px solid var(--line);
+    margin-top:8px;
+  }
+  .case-stats>div{
+    padding:26px 28px;
+    border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .case-stats>div:nth-child(2n){border-right:none;}
+  .case-stats>div:nth-child(n+3){border-bottom:none;}
+  .case-stats .cv{
+    font-family:var(--serif);
+    font-size:clamp(26px,2.5vw,38px);
+    color:var(--blue);
+    line-height:1.05;
+    margin-bottom:6px;
+  }
+  .case-stats .cv.amber{color:var(--amber);}
+  .case-stats .cl{font-size:13.5px;color:var(--gray-blue);}
+  .case-tag{
+    display:inline-block;
+    font-size:12.5px;
+    font-weight:600;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--blue);
+    border:1px solid var(--line);
+    background:var(--blue-pale);
+    padding:6px 14px;
+    border-radius:3px;
+    margin-bottom:20px;
+  }
+  /* ---------- partner model ---------- */
+  .model-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0;
+    border:1px solid var(--line);
+    margin-top:38px;
+  }
+  .model-grid>div{padding:34px 36px;}
+  .model-grid>div:first-child{border-right:1px solid var(--line);background:var(--blue-pale);}
+  .model-grid h3{
+    font-family:var(--serif);
+    font-size:24px;
+    font-weight:400;
+    color:var(--blue-dark);
+    margin-bottom:18px;
+  }
+  .model-grid ul{list-style:none;}
+  .model-grid li{
+    padding:9px 0 9px 26px;
+    position:relative;
+    font-size:15.5px;
+    color:#3D4C5C;
+  }
+  .model-grid li::before{
+    content:"·";
+    position:absolute;left:4px;top:6px;
+    color:var(--amber);
+    font-size:26px;
+    line-height:1;
+  }
+  .arpu-strip{
+    margin-top:36px;
+    display:flex;
+    align-items:baseline;
+    gap:26px;
+    flex-wrap:wrap;
+    border-top:1px solid var(--line);
+    padding-top:28px;
+  }
+  /* ---------- pilot steps ---------- */
+  .pilot-steps{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:28px;
+    margin-top:44px;
+    counter-reset:step;
+  }
+  .pilot-step{
+    border:1px solid var(--line);
+    padding:30px 26px;
+    position:relative;
+    counter-increment:step;
+  }
+  .pilot-step::before{
+    content:counter(step,decimal-leading-zero);
+    font-family:var(--serif);
+    font-size:44px;
+    color:var(--blue-pale);
+    -webkit-text-stroke:1px var(--gray-blue);
+    position:absolute;
+    top:18px;right:20px;
+    line-height:1;
+  }
+  .pilot-step h3{
+    font-size:17px;
+    font-weight:600;
+    color:var(--blue-dark);
+    margin-bottom:12px;
+    max-width:9em;
+  }
+  .pilot-step p{font-size:15px;color:#4A5A6B;}
+  .pilot-note{
+    margin-top:34px;
+    font-size:15.5px;
+    color:#4A5A6B;
+    border-left:3px solid var(--blue);
+    padding:14px 22px;
+    background:var(--blue-pale);
+    max-width:52em;
+  }
+  /* ---------- CTA ---------- */
+  #s10{background:linear-gradient(180deg,#FFFFFF 0%,var(--blue-pale) 100%);border-bottom:none;}
+  .cta-card{
+    border:1px solid var(--line);
+    border-top:3px solid var(--amber);
+    background:#fff;
+    padding:44px 48px;
+    margin-top:44px;
+    display:grid;
+    grid-template-columns:1.2fr .8fr;
+    gap:44px;
+    box-shadow:0 18px 50px -22px rgba(35,70,104,.22);
+  }
+  .cta-card .contact h3{
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gray-blue);
+    margin-bottom:16px;
+  }
+  .cta-card .contact p{font-size:16.5px;margin-bottom:8px;}
+  .cta-card .contact strong{color:var(--blue-dark);}
+  .cta-line{
+    font-family:var(--serif);
+    font-size:clamp(24px,2.6vw,36px);
+    color:var(--blue-dark);
+    line-height:1.25;
+  }
+  .cta-sub{margin-top:18px;font-size:16px;color:#4A5A6B;max-width:30em;}
+  /* ---------- dot nav ---------- */
+  .dots{
+    position:fixed;
+    right:22px;
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    z-index:50;
+  }
+  .dots a{
+    width:9px;height:9px;
+    border-radius:50%;
+    background:transparent;
+    border:1.5px solid var(--gray-blue);
+    display:block;
+    transition:all .25s ease;
+  }
+  .dots a.active{
+    background:var(--amber);
+    border-color:var(--amber);
+    transform:scale(1.35);
+  }
+  /* ---------- lightbox ---------- */
+  .lightbox{
+    position:fixed;
+    inset:0;
+    background:rgba(20,32,46,.88);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    padding:4vh 4vw;
+    cursor:zoom-out;
+  }
+  .lightbox.open{display:flex;}
+  .lightbox img{
+    max-width:100%;
+    max-height:100%;
+    border-radius:6px;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);
+    background:#fff;
+  }
+  .lightbox .lb-hint{
+    position:absolute;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%);
+    color:#B9C8D9;
+    font-size:13px;
+    letter-spacing:.06em;
+  }
+  /* ---------- responsive ---------- */
+  @media (max-width:960px){
+    .cols-2,.cols-55,.cols-45,.moat,.model-grid,.cta-card{grid-template-columns:1fr;}
+    .prob-grid,.baskets,.pilot-steps,.stat-row{grid-template-columns:1fr;}
+    .counter-flow{grid-template-columns:1fr;}
+    .cf-arrow{transform:rotate(90deg);justify-self:center;}
+    .case-stats{grid-template-columns:1fr;}
+    .case-stats>div{border-right:none!important;border-bottom:1px solid var(--line)!important;}
+    .case-stats>div:last-child{border-bottom:none!important;}
+    .model-grid>div:first-child{border-right:none;border-bottom:1px solid var(--line);}
+    section.slide{padding:56px 6vw;min-height:auto;}
+    .deck{scroll-snap-type:none;height:auto;overflow:visible;}
+    .dots{display:none;}
+    .slide-num{top:24px;}
+  }
+  /* ---------- print ---------- */
+  @media print{
+    .deck{height:auto;overflow:visible;scroll-snap-type:none;}
+    section.slide{
+      min-height:auto;
+      page-break-after:always;
+      break-after:page;
+      border-bottom:none;
+      padding:36px 40px;
+    }
+    section.slide:last-child{page-break-after:auto;}
+    .dots,.lightbox{display:none!important;}
+    .browser,.cta-card{box-shadow:none!important;}
+    .browser:hover{transform:none;}
+    #s5{background:#fff;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    body{font-size:13px;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="dots" aria-label="Навигация по секциям">
+  <a href="#s1" data-dot="s1" aria-label="Слайд 1"></a>
+  <a href="#s2" data-dot="s2" aria-label="Слайд 2"></a>
+  <a href="#s3" data-dot="s3" aria-label="Слайд 3"></a>
+  <a href="#s4" data-dot="s4" aria-label="Слайд 4"></a>
+  <a href="#s5" data-dot="s5" aria-label="Слайд 5"></a>
+  <a href="#s6" data-dot="s6" aria-label="Слайд 6"></a>
+  <a href="#s7" data-dot="s7" aria-label="Слайд 7"></a>
+  <a href="#s8" data-dot="s8" aria-label="Слайд 8"></a>
+  <a href="#s9" data-dot="s9" aria-label="Слайд 9"></a>
+  <a href="#s10" data-dot="s10" aria-label="Слайд 10"></a>
+</nav>
+
+<main class="deck" id="deck">
+
+  <!-- 1. HERO -->
+  <section class="slide" id="s1">
+    <div class="inner">
+      <div class="badge">Партнёрская программа для дилеров Omnicomm · Казахстан</div>
+      <h1>Финансовый аудит автопарка<br>под вашим брендом</h1>
+      <div class="hero-rule"></div>
+      <p class="lead">Аналитическая надстройка над Omnicomm для ваших клиентов.<br>
+      Вы продаёте мониторинг — мы превращаем его в деньги клиента.</p>
+      <div class="hero-meta">
+        <div><strong>Формат</strong>ежемесячный управленческий отчёт в тенге</div>
+        <div><strong>Дифференциатор</strong>накопительный счётчик подтверждённой экономии</div>
+        <div><strong>Модель</strong>white-label, без капзатрат и установки железа</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. ПРОБЛЕМА -->
+  <section class="slide" id="s2">
+    <span class="slide-num">02 / 10</span>
+    <div class="inner">
+      <p class="kicker">Проблема рынка</p>
+      <h2>Мониторинг стал товаром.<br>Конкуренция идёт ценой.</h2>
+      <div class="prob-grid">
+        <div class="prob-card">
+          <div class="pn">1 000–2 000&nbsp;₸</div>
+          <h3>Тариф за ТС в месяц — потолок рынка</h3>
+          <p>Абонентка в Казахстане упала до 1&nbsp;000–2&nbsp;000&nbsp;₸/ТС/мес. Дальше снижать некуда: демпинг съедает маржу, а удержать клиента нечем, кроме скидки.</p>
+        </div>
+        <div class="prob-card">
+          <div class="pn">0&nbsp;₸</div>
+          <h3>Клиент видит таблицы — не видит деньги</h3>
+          <p>Система показывает литры, километры и моточасы. Сколько это стоит парку в тенге и что с этим делать — клиент должен догадаться сам. Обычно не догадывается.</p>
+        </div>
+        <div class="prob-card">
+          <div class="pn">≈0 раз</div>
+          <h3>Директор парка не заходит в дашборды</h3>
+          <p>Выгрузки из Omnicomm — рабочий инструмент диспетчера. Руководителю нужен документ: вывод, сумма, рекомендация. Такого документа система не даёт.</p>
+        </div>
+      </div>
+      <p class="verdict">Пока ценность мониторинга измеряется в «точках на карте», единственный аргумент продажи — цена. Мы меняем единицу измерения на тенге.</p>
+    </div>
+  </section>
+
+  <!-- 3. РЕШЕНИЕ -->
+  <section class="slide" id="s3">
+    <span class="slide-num">03 / 10</span>
+    <div class="inner cols cols-45">
+      <div>
+        <p class="kicker">Решение</p>
+        <h2>Ежемесячный отчёт-аудит для директора парка</h2>
+        <p class="lead" style="font-size:18px;">Готовый документ в .pptx / .html / PDF — собирается автоматически из данных Omnicomm, читается за 15 минут.</p>
+        <ul class="tick-list">
+          <li><strong>Всё в тенге.</strong> Литры и моточасы переведены в деньги по фактическим ценам топлива и нормам клиента.</li>
+          <li><strong>Выводы, а не цифры.</strong> Каждый раздел заканчивается рекомендацией: что сделать и сколько это вернёт.</li>
+          <li><strong>Нормы расхода РК.</strong> Сверка с нормативами для списания ГСМ и вычета КПН — документ работает и для бухгалтерии.</li>
+          <li><strong>Официальный стиль.</strong> Без обвинений водителей: формулировка «требует проверки» — решение принимает руководитель.</li>
+        </ul>
+      </div>
+      <div>
+        <figure>
+          <div class="browser" data-full="../screenshots/report_hero.png">
+            <div class="bar"><i></i><i></i><i></i><span class="url">отчёт-аудит · титульный разворот</span></div>
+            <img src="../screenshots/report_hero.png" alt="Титульный разворот ежемесячного отчёта-аудита автопарка" loading="lazy">
+          </div>
+          <figcaption class="shot-cap">Первая страница отчёта: парк, период, ключевые суммы месяца. Клик — увеличить.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. ГДЕ ДЕНЬГИ -->
+  <section class="slide" id="s4">
+    <span class="slide-num">04 / 10</span>
+    <div class="inner cols cols-55">
+      <div>
+        <figure>
+          <div class="browser" data-full="../screenshots/report_financial.png">
+            <div class="bar"><i></i><i></i><i></i><span class="url">отчёт-аудит · финансовый раздел</span></div>
+            <img src="../screenshots/report_financial.png" alt="Финансовый раздел отчёта: корзины потерь в тенге" loading="lazy">
+          </div>
+          <figcaption class="shot-cap">Финансовый раздел: потери месяца разложены по корзинам в тенге. Клик — увеличить.</figcaption>
+        </figure>
+      </div>
+      <div>
+        <p class="kicker">Где деньги</p>
+        <h2>Корзины потерь и цена бездействия</h2>
+        <div class="baskets" style="grid-template-columns:1fr;">
+          <div class="basket">
+            <div class="bt">Корзина 1</div>
+            <div class="bv">Холостой ход</div>
+            <p>Моточасы без работы и без движения — топливо, сожжённое в ноль. В коммунальных и строительных парках это главная статья потерь.</p>
+          </div>
+          <div class="basket">
+            <div class="bt">Корзина 2</div>
+            <div class="bv">Перерасход к нормам</div>
+            <p>Факт против нормы по каждой машине. Видно, где техника, маршрут или водитель «едят» сверх норматива.</p>
+          </div>
+          <div class="basket">
+            <div class="bt">Корзина 3</div>
+            <div class="bv">Скрытый износ</div>
+            <p>Часы работы двигателя, не дающие выработки, приближают ТО и капремонт — потеря, которой нет ни в одном топливном отчёте.</p>
+          </div>
+        </div>
+        <p class="verdict" style="margin-top:30px;">Итог раздела для директора: «каждый месяц без программы экономии парк теряет ≈&nbsp;N&nbsp;₸» — одна цифра, которая продаёт следующий месяц.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. СЧЁТЧИК -->
+  <section class="slide" id="s5">
+    <span class="slide-num">05 / 10</span>
+    <div class="inner">
+      <p class="kicker">Главный дифференциатор</p>
+      <h2>Счётчик подтверждённой экономии</h2>
+      <p class="lead">Не «потенциал» и не «прогноз» — доказанная разница между «как было» и «как стало», накопленная в тенге.</p>
+      <div class="counter-flow">
+        <div class="cf-step">
+          <div class="ct">1. Эталон замораживается</div>
+          <p>Первый месяц фиксируем baseline: расход, холостой ход, структуру моточасов парка «как было» — до программы.</p>
+        </div>
+        <div class="cf-arrow">&rarr;</div>
+        <div class="cf-step">
+          <div class="ct">2. Факт против эталона</div>
+          <p>Каждый месяц сравниваем факт с эталоном с нормализацией на пробег, моточасы и сезон. «Ездили меньше» экономией не считается.</p>
+        </div>
+        <div class="cf-arrow">&rarr;</div>
+        <div class="cf-step">
+          <div class="ct">3. Счётчик растёт</div>
+          <p>Подтверждённая разница приплюсовывается к накопительному счётчику в тенге — на первой странице каждого отчёта.</p>
+        </div>
+      </div>
+      <div class="counter-display">
+        <div class="cd-num">+&nbsp;461&nbsp;187&nbsp;₸</div>
+        <div class="cd-text"><strong>Реальная цифра: первые 11 дней работающей программы</strong> (боевой парк ~70 ед., июнь 2026) — так выглядит строка, ради которой директор открывает отчёт. Этого не делает ни одна система мониторинга в СНГ.</div>
+      </div>
+      <div class="moat">
+        <div><strong>Почему клиент не уходит.</strong> Отказ от программы — это обнулить доказанную, накопленную ценность. Отключиться больно: счётчик и есть удержание.</div>
+        <div><strong>Почему это ваш аргумент.</strong> Продление абонентки перестаёт быть разговором о цене — оно становится разговором о сумме на счётчике.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. КЕЙС -->
+  <section class="slide" id="s6">
+    <span class="slide-num">06 / 10</span>
+    <div class="inner cols cols-2">
+      <div>
+        <p class="kicker">Боевой кейс</p>
+        <span class="case-tag">Коммунальная техника · ~70 ед. · Караганда · май 2026</span>
+        <h2>Один месяц данных — годовая программа экономии</h2>
+        <div class="case-stats">
+          <div>
+            <div class="cv">29,3&nbsp;млн&nbsp;₸</div>
+            <div class="cl">затраты на топливо в месяц</div>
+          </div>
+          <div>
+            <div class="cv amber">47,5%</div>
+            <div class="cl">моточасов — холостой ход</div>
+          </div>
+          <div>
+            <div class="cv amber">7,8&nbsp;млн&nbsp;₸</div>
+            <div class="cl">потери на простое в месяц</div>
+          </div>
+          <div>
+            <div class="cv">9–28&nbsp;млн&nbsp;₸</div>
+            <div class="cl">потенциал программы в год</div>
+          </div>
+        </div>
+        <p style="margin-top:26px;font-size:15.5px;color:#4A5A6B;max-width:36em;">Все цифры — из реального отчёта по действующему парку на оборудовании Omnicomm. Данные уже были в системе; не хватало только документа, который их считает в тенге.</p>
+      </div>
+      <div>
+        <figure>
+          <div class="browser" data-full="../screenshots/report_usage.png">
+            <div class="bar"><i></i><i></i><i></i><span class="url">отчёт-аудит · использование техники</span></div>
+            <img src="../screenshots/report_usage.png" alt="Раздел отчёта об использовании техники: структура моточасов и простоев" loading="lazy">
+          </div>
+          <figcaption class="shot-cap">Раздел «Использование техники»: структура моточасов и стоимость простоя. Клик — увеличить.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. СПЕЦТЕХНИКА -->
+  <section class="slide" id="s7">
+    <span class="slide-num">07 / 10</span>
+    <div class="inner cols cols-45">
+      <div>
+        <p class="kicker">Спецтехника и аренда</p>
+        <h2>Экономика моточаса — там, где не работает километр</h2>
+        <p class="lead" style="font-size:18px;">Экскаваторы, краны, погрузчики — сильная сторона парков на Omnicomm. Для них считаем не л/100&nbsp;км, а л/мч и себестоимость часа работы.</p>
+        <ul class="tick-list">
+          <li><strong>Себестоимость моточаса.</strong> Топливо + износ на час наработки по каждой единице — база для тарифа и для решения «своя или арендованная».</li>
+          <li><strong>Акт наработки для аренды.</strong> Наработка&nbsp;&times;&nbsp;ставка по данным телематики: «телематика как нотариус наработки» — закрывает споры с арендатором по часам.</li>
+          <li><strong>Отклонения, которые стоят денег.</strong> Вторая смена вне графика; накрутка моточасов простоем под счёт аренды — видим оба сценария.</li>
+        </ul>
+      </div>
+      <div>
+        <figure>
+          <div class="browser" data-full="../screenshots/report_loading.png">
+            <div class="bar"><i></i><i></i><i></i><span class="url">отчёт-аудит · работа спецтехники</span></div>
+            <img src="../screenshots/report_loading.png" alt="Раздел отчёта по работе спецтехники: циклы и наработка" loading="lazy">
+          </div>
+          <figcaption class="shot-cap">Модуль работы спецтехники: циклы, наработка, отклонения. Клик — увеличить.</figcaption>
+        </figure>
+        <div class="stat-row" style="grid-template-columns:1fr 1fr;margin-top:34px;">
+          <div>
+            <div class="big-num" style="font-size:clamp(34px,3vw,48px);">л&nbsp;/&nbsp;мч</div>
+            <div class="num-cap">единица учёта вместо л/100 км — корректная норма для спецтехники</div>
+          </div>
+          <div>
+            <div class="big-num amber" style="font-size:clamp(34px,3vw,48px);">мч&nbsp;&times;&nbsp;₸</div>
+            <div class="num-cap">акт наработки для арендных парков — прямо из данных мониторинга</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. ПАРТНЁРСКАЯ МОДЕЛЬ -->
+  <section class="slide" id="s8">
+    <span class="slide-num">08 / 10</span>
+    <div class="inner">
+      <p class="kicker">Партнёрская модель</p>
+      <h2>White-label: ваш бренд, наш движок</h2>
+      <div class="model-grid">
+        <div>
+          <h3>Вы — клиент и бренд</h3>
+          <ul>
+            <li>Отчёт выходит под вашим логотипом и от вашего имени</li>
+            <li>Отношения с клиентом, договор и выручка — ваши</li>
+            <li>Данные уже в вашем Omnicomm — установка железа не нужна</li>
+            <li>Новый аргумент продления и продажи против демпинга</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Мы — аналитический движок</h3>
+          <ul>
+            <li>Сбор данных по API Omnicomm, нормы, расчёт, вёрстка отчёта</li>
+            <li>Baseline, нормализация и счётчик подтверждённой экономии</li>
+            <li>Развитие методики: спецтехника, аренда, сезонные нормы</li>
+            <li>Поддержка пилота и сопровождение первых клиентов</li>
+          </ul>
+        </div>
+      </div>
+      <div class="arpu-strip">
+        <div>
+          <div class="big-num amber">+1&nbsp;000–2&nbsp;000&nbsp;₸</div>
+          <div class="num-cap">к вашему ARPU на каждое ТС в месяц — фактически второй тариф мониторинга</div>
+        </div>
+        <div>
+          <div class="big-num">0&nbsp;₸</div>
+          <div class="num-cap">капитальных затрат: ни железа, ни разработки, ни найма аналитиков</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. ПИЛОТ -->
+  <section class="slide" id="s9">
+    <span class="slide-num">09 / 10</span>
+    <div class="inner">
+      <p class="kicker">Запуск пилота</p>
+      <h2>Один клиент. Один месяц. Готовый отчёт.</h2>
+      <div class="pilot-steps">
+        <div class="pilot-step">
+          <h3>Выбираем клиента</h3>
+          <p>Один действующий парк на вашем Omnicomm — лучше тот, где директор уже жалуется на топливо. От вас: read-only доступ к учётке Omnicomm клиента и час на ввод норм расхода.</p>
+        </div>
+        <div class="pilot-step">
+          <h3>Месяц данных</h3>
+          <p>Собираем месяц фактических данных, считаем корзины потерь, верстаем первый отчёт-аудит под вашим брендом и замораживаем baseline «как было».</p>
+        </div>
+        <div class="pilot-step">
+          <h3>Счётчик включён</h3>
+          <p>Со второго месяца каждый отчёт сравнивает факт с эталоном — счётчик подтверждённой экономии начинает накапливать тенге. Дальше пилот сам себя продаёт.</p>
+        </div>
+      </div>
+      <p class="pilot-note">Стоимость пилота обсуждается на встрече. Риск минимален: ни интеграции, ни установки, ни изменений в работе диспетчеров — только доступ к данным, которые уже собираются.</p>
+    </div>
+  </section>
+
+  <!-- 10. CTA -->
+  <section class="slide" id="s10">
+    <span class="slide-num">10 / 10</span>
+    <div class="inner">
+      <p class="kicker">Следующий шаг</p>
+      <h2 style="max-width:18em;">Выберите одного клиента — через месяц у него будет первый финансовый отчёт</h2>
+      <div class="cta-card">
+        <div>
+          <p class="cta-line">Дальше отчёт будет продавать ваш тариф каждый месяц — суммой на счётчике.</p>
+          <p class="cta-sub">Предлагаем 30-минутный созвон: покажем живой отчёт по реальному парку и согласуем кандидата на пилот.</p>
+        </div>
+        <div class="contact">
+          <h3>Контакты</h3>
+          <p><strong>TechnoKod</strong> · аналитика автопарков</p>
+          <p>Дмитрий, основатель</p>
+          <p>тел.: +7 (___) ___-__-__</p>
+          <p>e-mail: ______@technokod.kz</p>
+          <p>technokod.kz</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Просмотр изображения">
+  <img src="" alt="Увеличенный скриншот" id="lightboxImg">
+  <span class="lb-hint">Esc или клик — закрыть</span>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  /* ---- lightbox ---- */
+  var lb = document.getElementById("lightbox");
+  var lbImg = document.getElementById("lightboxImg");
+  document.querySelectorAll(".browser[data-full]").forEach(function(el){
+    el.addEventListener("click", function(){
+      lbImg.src = el.getAttribute("data-full");
+      lb.classList.add("open");
+    });
+  });
+  function closeLb(){
+    lb.classList.remove("open");
+    lbImg.src = "";
+  }
+  lb.addEventListener("click", closeLb);
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" && lb.classList.contains("open")) closeLb();
+  });
+
+  /* ---- dot nav active state ---- */
+  var dots = {};
+  document.querySelectorAll(".dots a[data-dot]").forEach(function(a){
+    dots[a.getAttribute("data-dot")] = a;
+  });
+  var sections = document.querySelectorAll("section.slide");
+  if("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          Object.keys(dots).forEach(function(k){ dots[k].classList.remove("active"); });
+          var d = dots[en.target.id];
+          if(d) d.classList.add("active");
+        }
+      });
+    }, { root: document.getElementById("deck"), threshold: 0.55 });
+    sections.forEach(function(s){ io.observe(s); });
+  }
+  /* dots smooth scroll within snap container */
+  document.querySelectorAll(".dots a").forEach(function(a){
+    a.addEventListener("click", function(e){
+      e.preventDefault();
+      var target = document.querySelector(a.getAttribute("href"));
+      if(target) target.scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+</script>
+</body>
+</html>

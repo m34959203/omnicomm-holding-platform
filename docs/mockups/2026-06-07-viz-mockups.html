@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мокапы графиков — Omnicomm Fleet Report</title>
+<style>
+  :root{
+    --primary:#2F5C8F; --primary-soft:#5B7FAA; --secondary:#7E93AB;
+    --accent:#C8893F; --accent-soft:#E8C79B; --text:#2B2B2B; --muted:#6B7785;
+    --grid:#D9DEE6; --track:#EEF1F5; --bg:#F4F6F9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.5}
+  .wrap{max-width:880px;margin:0 auto;padding:28px}
+  h1{color:var(--primary);font-size:24px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 24px}
+  .card{background:#fff;border:1px solid var(--grid);border-radius:14px;padding:22px 26px;margin:18px 0}
+  .card h2{color:var(--primary);font-size:18px;margin:0 0 2px}
+  .card .q{color:var(--muted);font-size:13px;margin:0 0 14px;font-style:italic}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:10px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+  text{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Мокапы ключевых графиков</h1>
+  <p class="sub">Фирменная палитра · иллюстративные демо-данные (госномера и привязка к клиенту обезличены — репозиторий публичный) · самодостаточный офлайн-SVG</p>
+
+  <div class="card">
+    <h2>1. Куда уходят деньги</h2>
+    <p class="q">Управленческий вопрос: сколько топлива оплачено впустую и сколько можно вернуть?</p>
+    <svg viewBox="0 0 760 220" width="100%" role="img" aria-labelledby="m1t m1d">
+      <title id="m1t">Структура стоимости топлива за месяц</title>
+      <desc id="m1d">Иллюстрация: из месячного бюджета топлива заметная доля приходится на работу двигателя без движения.</desc>
+      <text x="30" y="34" font-size="19" font-weight="700" fill="#2B2B2B">На простое сгорает ~7,8 млн ₸/мес</text>
+      <text x="30" y="56" font-size="13" fill="#6B7785">≈27% топливного бюджета · ≈ 93 млн ₸/год · возврат до ~2,3 млн ₸/мес при простое −30%</text>
+      <rect x="30" y="86" width="510" height="52" rx="4" fill="#2F5C8F"/>
+      <rect x="540" y="86" width="190" height="52" rx="4" fill="#C8893F"/>
+      <text x="285" y="112" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">~21,5 млн ₸</text>
+      <text x="285" y="130" font-size="11" fill="#DCE6F2" text-anchor="middle">топливо в движении</text>
+      <text x="635" y="112" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">~7,8 млн ₸</text>
+      <text x="635" y="130" font-size="11" fill="#F6E7D2" text-anchor="middle">на простое</text>
+      <line x1="540" y1="78" x2="540" y2="150" stroke="#2B2B2B" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="730" y="170" font-size="12" fill="#6B7785" text-anchor="end">всего ~29 млн ₸ за период</text>
+      <rect x="30" y="186" width="170" height="22" rx="6" fill="#FBF3E8"/>
+      <text x="40" y="201" font-size="12" font-weight="700" fill="#C8893F">▲ возврат ≈ 28 млн ₸/год</text>
+    </svg>
+    <div class="legend">
+      <span><i class="sw" style="background:#2F5C8F"></i>Необходимое (движение)</span>
+      <span><i class="sw" style="background:#C8893F"></i>Возвратный резерв (простой)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Холостой ход против цели</h2>
+    <p class="q">Управленческий вопрос: насколько мы далеки от нормы и кто тянет вниз?</p>
+    <svg viewBox="0 0 760 170" width="100%" role="img" aria-labelledby="m2t m2d">
+      <title id="m2t">Доля холостого хода</title>
+      <desc id="m2d">Иллюстрация: доля холостого хода против цели 5% и среднего по паркам 33%.</desc>
+      <text x="30" y="34" font-size="19" font-weight="700" fill="#2B2B2B">Холостой ход: ~48% моточасов</text>
+      <text x="30" y="56" font-size="13" fill="#6B7785">цель ≤ 5% · среднее по паркам ~33% · в деньгах ≈ 7,8 млн ₸/мес</text>
+      <rect x="30" y="78" width="700" height="30" rx="6" fill="#EEF1F5"/>
+      <rect x="30" y="78" width="336" height="30" rx="6" fill="#C8893F"/>
+      <text x="350" y="98" font-size="14" font-weight="700" fill="#fff">48%</text>
+      <line x1="65" y1="70" x2="65" y2="116" stroke="#2F5C8F" stroke-width="2"/>
+      <text x="65" y="132" font-size="11" fill="#2F5C8F" text-anchor="middle">цель 5%</text>
+      <line x1="261" y1="70" x2="261" y2="116" stroke="#7E93AB" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="261" y="132" font-size="11" fill="#7E93AB" text-anchor="middle">среднее 33%</text>
+      <text x="724" y="150" font-size="12" fill="#6B7785" text-anchor="end">худшие: Погрузчик-1 100% · Погрузчик-2 96% · Автобус 65%</text>
+    </svg>
+  </div>
+
+  <div class="card">
+    <h2>3. Отклонение от нормы расхода, ₸</h2>
+    <p class="q">Управленческий вопрос: кто вне нормы и на какую сумму — куда смотреть первым?</p>
+    <svg viewBox="0 0 760 300" width="100%" role="img" aria-labelledby="m3t m3d">
+      <title id="m3t">Перерасход и экономия к норме</title>
+      <desc id="m3d">Иллюстрация: сальдо по парку, перерасход против экономии, рейтинг топ-перерасхода.</desc>
+      <text x="30" y="30" font-size="16" font-weight="700" fill="#2B2B2B">Сальдо по парку: +~1,2 млн ₸</text>
+      <rect x="30" y="44" width="380" height="20" rx="4" fill="#C8893F"/>
+      <rect x="410" y="44" width="302" height="20" rx="4" fill="#2F5C8F"/>
+      <text x="36" y="58" font-size="11" font-weight="700" fill="#fff">перерасход ~5,6 млн (28 ТС)</text>
+      <text x="706" y="58" font-size="11" font-weight="700" fill="#fff" text-anchor="end">экономия ~4,5 млн (34 ТС)</text>
+      <text x="30" y="100" font-size="13" font-weight="700" fill="#6B7785">Топ перерасхода — адресный разбор:</text>
+      <g font-size="12.5" fill="#2B2B2B">
+        <text x="30" y="128">Мусоровоз №1</text>
+        <rect x="190" y="118" width="430" height="14" rx="3" fill="#C8893F"/>
+        <text x="628" y="128" font-weight="700" fill="#C8893F">+577K ₸</text>
+        <text x="30" y="152">Мусоровоз №2</text>
+        <rect x="190" y="142" width="416" height="14" rx="3" fill="#C8893F"/>
+        <text x="614" y="152" font-weight="700" fill="#C8893F">+558K ₸</text>
+        <text x="30" y="176">Мусоровоз №3</text>
+        <rect x="190" y="166" width="413" height="14" rx="3" fill="#C8893F"/>
+        <text x="611" y="176" font-weight="700" fill="#C8893F">+554K ₸</text>
+        <text x="30" y="200">Мусоровоз №4</text>
+        <rect x="190" y="190" width="311" height="14" rx="3" fill="#D8A765"/>
+        <text x="509" y="200" font-weight="700" fill="#C8893F">+418K ₸</text>
+        <text x="30" y="224">Мусоровоз №5</text>
+        <rect x="190" y="214" width="297" height="14" rx="3" fill="#D8A765"/>
+        <text x="495" y="224" font-weight="700" fill="#C8893F">+398K ₸</text>
+      </g>
+      <text x="30" y="262" font-size="11.5" fill="#6B7785">Только при заданных нормах. Без согласованной нормы перерасход не утверждается.</text>
+      <text x="30" y="282" font-size="11.5" fill="#6B7785">Нормы в иллюстрации единые-дефолтные (38 л/100км + 5,5 л/мч) → суммы индикативные.</text>
+    </svg>
+    <div class="legend">
+      <span><i class="sw" style="background:#C8893F"></i>Перерасход к норме</span>
+      <span><i class="sw" style="background:#2F5C8F"></i>Экономия к норме</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4. Карта эффективности парка (предлагается взамен трёх плоских bar-графиков)</h2>
+    <p class="q">Один экран вместо mileage + cost + fuel_per_100km: кто жжёт много и кто аномален.</p>
+    <svg viewBox="0 0 760 360" width="100%" role="img" aria-labelledby="m4t m4d">
+      <title id="m4t">Карта эффективности: пробег против расхода</title>
+      <desc id="m4d">Пузырьковая диаграмма: ось X пробег, ось Y расход на 100 км, размер пузыря стоимость, янтарь над нормой.</desc>
+      <line x1="60" y1="300" x2="730" y2="300" stroke="#D9DEE6"/>
+      <line x1="60" y1="40" x2="60" y2="300" stroke="#D9DEE6"/>
+      <text x="395" y="338" font-size="12" fill="#6B7785" text-anchor="middle">Пробег за период, км →</text>
+      <text x="20" y="170" font-size="12" fill="#6B7785" text-anchor="middle" transform="rotate(-90 20 170)">Расход, л/100 км →</text>
+      <line x1="60" y1="150" x2="730" y2="150" stroke="#C8893F" stroke-width="1" stroke-dasharray="5 4"/>
+      <text x="726" y="144" font-size="11" fill="#C8893F" text-anchor="end">норма 38 л/100км</text>
+      <circle cx="250" cy="95" r="26" fill="#C8893F" fill-opacity="0.85"/>
+      <text x="250" y="99" font-size="10" fill="#fff" text-anchor="middle">№1</text>
+      <circle cx="300" cy="105" r="24" fill="#C8893F" fill-opacity="0.85"/>
+      <text x="300" y="109" font-size="10" fill="#fff" text-anchor="middle">№2</text>
+      <circle cx="200" cy="120" r="22" fill="#D8A765" fill-opacity="0.85"/>
+      <circle cx="420" cy="205" r="20" fill="#2F5C8F" fill-opacity="0.7"/>
+      <circle cx="520" cy="225" r="22" fill="#2F5C8F" fill-opacity="0.7"/>
+      <circle cx="610" cy="245" r="18" fill="#2F5C8F" fill-opacity="0.7"/>
+      <circle cx="480" cy="190" r="16" fill="#7E93AB" fill-opacity="0.7"/>
+      <circle cx="360" cy="170" r="19" fill="#7E93AB" fill-opacity="0.7"/>
+      <text x="250" y="60" font-size="11" font-weight="700" fill="#C8893F" text-anchor="middle">зона внимания</text>
+      <text x="610" y="285" font-size="11" fill="#2F5C8F" text-anchor="middle">в норме</text>
+    </svg>
+    <div class="legend">
+      <span><i class="sw" style="background:#C8893F"></i>Над нормой</span>
+      <span><i class="sw" style="background:#2F5C8F"></i>В норме</span>
+      <span>размер пузыря = стоимость топлива ₸</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

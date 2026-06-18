@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omnicomm Fleet Report — аналитическая платформа автопарка</title>
+<style>
+  :root{
+    --blue:#2F5C8F; --blue-d:#244a73; --amber:#C8893F; --amber-d:#a86f2c;
+    --ink:#2B2B2B; --muted:#6b7280; --line:#E2E6EC; --bg:#F4F6F9; --white:#fff;
+    --maxw:1180px; --radius:16px;
+    --shadow:0 1px 2px rgba(20,40,70,.04),0 12px 32px -12px rgba(20,40,70,.18);
+    --shadow-lg:0 30px 80px -28px rgba(20,40,70,.45);
+    --font:"Inter","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--white);
+       line-height:1.55;-webkit-font-smoothing:antialiased;font-size:17px}
+  h1,h2,h3{line-height:1.15;margin:0;letter-spacing:-.02em;font-weight:800}
+  p{margin:0}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.82);
+      backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;gap:24px;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;
+         letter-spacing:-.02em;margin-right:auto}
+  .brand .logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+        background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;font-size:16px}
+  nav a.link{color:var(--muted);font-size:14.5px;font-weight:600;transition:color .2s}
+  nav a.link:hover{color:var(--blue)}
+  .nav-links{display:flex;gap:22px}
+  @media(max-width:820px){.nav-links{display:none}}
+
+  /* hero */
+  .hero{position:relative;overflow:hidden;
+        background:radial-gradient(120% 120% at 80% -10%,#eaf1fa 0%,#fff 55%)}
+  .hero .wrap{padding:96px 28px 80px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;
+     letter-spacing:.08em;text-transform:uppercase;color:var(--amber-d);
+     background:#fbf2e7;border:1px solid #f0ddc3;padding:6px 14px;border-radius:999px}
+  .hero h1{font-size:clamp(34px,5.4vw,62px);margin:22px 0 0;max-width:16ch}
+  .hero h1 .accent{color:var(--blue)}
+  .hero .lead{font-size:clamp(17px,2.1vw,21px);color:var(--muted);max-width:60ch;margin-top:22px}
+  .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:34px}
+  .btn{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;border-radius:12px;
+       font-weight:700;font-size:15.5px;transition:transform .15s,box-shadow .2s}
+  .btn.primary{background:var(--blue);color:#fff;box-shadow:var(--shadow)}
+  .btn.primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+  .btn.ghost{border:1.5px solid var(--line);color:var(--ink)}
+  .btn.ghost:hover{border-color:var(--blue);color:var(--blue)}
+  .hero-stats{display:flex;gap:40px;flex-wrap:wrap;margin-top:56px;
+       border-top:1px solid var(--line);padding-top:30px}
+  .hero-stats .s b{display:block;font-size:30px;font-weight:800;color:var(--blue);letter-spacing:-.02em}
+  .hero-stats .s span{font-size:14px;color:var(--muted)}
+
+  /* sections */
+  section{padding:84px 0}
+  section.alt{background:var(--bg)}
+  .sec-head{max-width:62ch;margin-bottom:46px}
+  .sec-head .kicker{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+       color:var(--amber-d)}
+  .sec-head h2{font-size:clamp(27px,3.6vw,40px);margin-top:12px}
+  .sec-head p{color:var(--muted);font-size:18px;margin-top:14px}
+
+  /* feature grid */
+  .grid{display:grid;gap:20px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:900px){.g3,.g2{grid-template-columns:1fr}}
+  .card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
+        padding:26px;transition:transform .2s,box-shadow .2s,border-color .2s}
+  .card:hover{transform:translateY(-4px);box-shadow:var(--shadow);border-color:#cdd8e6}
+  .card .ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;
+        font-size:22px;background:#eef3fa;margin-bottom:16px}
+  .card h3{font-size:19px}
+  .card p{color:var(--muted);font-size:15px;margin-top:9px}
+  .card .tag{display:inline-block;margin-top:14px;font-size:12px;font-weight:700;
+        color:var(--amber-d);background:#fbf2e7;padding:3px 10px;border-radius:999px}
+
+  /* pipeline */
+  .pipe{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .pipe .step{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);
+        padding:22px 18px;text-align:center;position:relative}
+  .pipe .step:first-child{border-radius:14px 0 0 14px}
+  .pipe .step:last-child{border-radius:0 14px 14px 0}
+  .pipe .step .n{font-size:12px;font-weight:700;color:var(--amber-d);letter-spacing:.08em}
+  .pipe .step b{display:block;margin-top:8px;font-size:16px}
+  .pipe .step span{display:block;color:var(--muted);font-size:13px;margin-top:6px}
+  .pipe .step:not(:last-child)::after{content:"→";position:absolute;right:-11px;top:50%;
+        transform:translateY(-50%);color:var(--blue);font-weight:700;z-index:2;
+        background:#fff;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+        border:1px solid var(--line);font-size:13px}
+  @media(max-width:760px){.pipe{flex-direction:column}
+        .pipe .step{border-radius:14px!important;margin-bottom:10px}
+        .pipe .step::after{display:none!important}}
+
+  /* shots gallery */
+  .shots{display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
+  .shot{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+        cursor:zoom-in;background:#fff;box-shadow:var(--shadow);transition:transform .2s}
+  .shot:hover{transform:translateY(-3px)}
+  .shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
+  .shot .cap{position:absolute;left:0;right:0;bottom:0;padding:14px 16px;color:#fff;
+        font-size:14px;font-weight:600;background:linear-gradient(transparent,rgba(20,35,60,.82))}
+  .shot.lg{grid-column:span 8}
+  .shot.sm{grid-column:span 4}
+  .shot.half{grid-column:span 6}
+  @media(max-width:760px){.shot.lg,.shot.sm,.shot.half{grid-column:span 12}}
+
+  /* outputs */
+  .out{display:flex;gap:14px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);
+        padding:12px 18px;border-radius:12px;font-weight:700;font-size:15px}
+  .pill .d{width:9px;height:9px;border-radius:50%;background:var(--amber)}
+
+  /* split */
+  .split{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+  @media(max-width:900px){.split{grid-template-columns:1fr;gap:28px}}
+  .split img{width:100%;border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);cursor:zoom-in}
+  .ul{list-style:none;padding:0;margin:22px 0 0}
+  .ul li{position:relative;padding:9px 0 9px 32px;border-bottom:1px dashed var(--line);font-size:15.5px}
+  .ul li:last-child{border-bottom:0}
+  .ul li::before{content:"✓";position:absolute;left:0;top:9px;color:#fff;background:var(--blue);
+        width:21px;height:21px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:700}
+
+  /* footer */
+  footer{background:var(--blue-d);color:#dbe6f3;padding:60px 0 44px}
+  footer h3{color:#fff;font-size:24px}
+  footer p{color:#b8c8dd;margin-top:12px;max-width:60ch}
+  footer .meta{margin-top:30px;padding-top:22px;border-top:1px solid rgba(255,255,255,.15);
+        font-size:13.5px;color:#9fb4ce;display:flex;gap:20px;flex-wrap:wrap}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  /* lightbox */
+  .lb{position:fixed;inset:0;z-index:100;background:rgba(15,25,40,.92);display:none;
+      align-items:center;justify-content:center;padding:40px;cursor:zoom-out}
+  .lb.open{display:flex}
+  .lb img{max-width:95vw;max-height:92vh;border-radius:10px;box-shadow:0 40px 120px rgba(0,0,0,.6)}
+  .lb .close{position:absolute;top:22px;right:30px;color:#fff;font-size:34px;font-weight:300;cursor:pointer;line-height:1}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="logo">🚛</span> Omnicomm&nbsp;Fleet&nbsp;Report</div>
+    <div class="nav-links">
+      <a class="link" href="#what">О системе</a>
+      <a class="link" href="#features">Возможности</a>
+      <a class="link" href="#report">Отчёт</a>
+      <a class="link" href="#platform">Платформа</a>
+      <a class="link" href="#arch">Как устроено</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Телематика → управленческий отчёт</span>
+    <h1>Сырые данные телематики превращаем в <span class="accent">решения для руководителя</span></h1>
+    <p class="lead">Omnicomm Fleet Report автоматически анализирует автопарк из Omnicomm Online
+       и собирает презентабельный отчёт с деньгами в тенге: где парк теряет топливо,
+       сколько стоит простой, кто выходит за нормы и что с этим делать.</p>
+    <div class="cta">
+      <a class="btn primary" href="#features">Что умеет система →</a>
+      <a class="btn ghost" href="#report">Посмотреть отчёт</a>
+    </div>
+    <div class="hero-stats">
+      <div class="s reveal"><b>3</b><span>источника: API · Excel · CSV</span></div>
+      <div class="s reveal"><b>₸</b><span>денежная оценка простоя и норм</span></div>
+      <div class="s reveal"><b>3</b><span>формата вывода: PPTX · HTML · PDF</span></div>
+      <div class="s reveal"><b>∞</b><span>клиентов на мульти-тенант платформе</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- WHAT -->
+<section id="what">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Зачем это нужно</div>
+      <h2>Телематика собирает гигабайты данных. Руководителю нужен один вывод.</h2>
+      <p>Omnicomm Online фиксирует пробег, топливо, моточасы и GPS по каждой машине, но это
+         технические выгрузки. Наша система проходит весь путь от запроса к API до готовой
+         презентации — без ручного разбора таблиц.</p>
+    </div>
+    <div class="pipe reveal">
+      <div class="step"><div class="n">01</div><b>Загрузка</b><span>Omnicomm API (POST) или Excel/CSV</span></div>
+      <div class="step"><div class="n">02</div><b>Проверка</b><span>единицы, аномалии, «требует проверки»</span></div>
+      <div class="step"><div class="n">03</div><b>Аналитика</b><span>деньги ₸, нормы, простой, погрузка</span></div>
+      <div class="step"><div class="n">04</div><b>Графики</b><span>чистые диаграммы по парку</span></div>
+      <div class="step"><div class="n">05</div><b>Отчёт</b><span>PPTX · HTML · PDF</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" class="alt">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Возможности</div>
+      <h2>Не выгрузка данных, а управленческая аналитика</h2>
+      <p>Каждый модуль отвечает на конкретный вопрос руководителя автопарка — и считает эффект
+         в деньгах.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card reveal"><div class="ic">🧭</div><h3>Экран для руководителя</h3>
+        <p>«Вау»-сводка сверху отчёта: куда уходят деньги и холостой ход против цели —
+           главное считывается за секунды, без чтения таблиц.</p><span class="tag">новое</span></div>
+      <div class="card reveal"><div class="ic">💰</div><h3>Деньги в тенге</h3>
+        <p>Стоимость топлива, цена простоя, потенциальная экономия и проекция на год — всё в ₸,
+           по управляемой цене ГСМ.</p></div>
+      <div class="card reveal"><div class="ic">🗑️</div><h3>Работа на погрузке</h3>
+        <p>Для мусоровозов: отделяем продуктивную погрузку от пустого простоя <b>даже без
+           датчиков</b> — по оборотам, геозонам или GPS-маршруту (откалибровано на парке).</p>
+        <span class="tag">профильный модуль</span></div>
+      <div class="card reveal"><div class="ic">📐</div><h3>Нормы и перерасход</h3>
+        <p>Паспортные нормы л/100км и л/моточас с коэффициентами (зима, свалка, город, износ)
+           → перерасход и экономия по каждой машине.</p></div>
+      <div class="card reveal"><div class="ic">📍</div><h3>Геозоны-площадки</h3>
+        <p>Если в Omnicomm заведены площадки — система автоматически строит журнал обслуживания:
+           визиты, время, топливо, ₸.</p><span class="tag">новое</span></div>
+      <div class="card reveal"><div class="ic">🚨</div><h3>Авто-сигналы</h3>
+        <p>Перерасход выше порога, простой более половины моточасов, «тёмные» машины без данных —
+           система сама поднимает флаги руководителю.</p></div>
+      <div class="card reveal"><div class="ic">📈</div><h3>Дашборд-KPI и тренды</h3>
+        <p>KPI-плитки с дельтой к прошлому периоду (▲/▼) и цветовым статусом; обезличенное
+           сравнение парков между клиентами — видно динамику и отстающих.</p></div>
+      <div class="card reveal"><div class="ic">⏱️</div><h3>Планировщик и рассылка</h3>
+        <p>Демон формирует отчёты по расписанию и шлёт на e-mail; он же ежедневно
+           обновляет цену ГСМ — без участия человека.</p></div>
+      <div class="card reveal"><div class="ic">🗓️</div><h3>Календарь цены ГСМ</h3>
+        <p>История стоимости топлива по датам: расход за период считается по цене
+           каждого дня (учёт «взлётов и падений»).</p><span class="tag">новое</span></div>
+      <div class="card reveal"><div class="ic">🔐</div><h3>Роли и доступ</h3>
+        <p>Менеджер формирует отчёты, администратор настраивает систему; все действия
+           менеджеров логируются.</p><span class="tag">новое</span></div>
+      <div class="card reveal"><div class="ic">🚛</div><h3>Паспорта и типы техники</h3>
+        <p>Справочник типов задаёт логику расчёта: для стационарной спецтехники метрика —
+           л/моточас, для транспорта — л/100км.</p></div>
+      <div class="card reveal"><div class="ic">👥</div><h3>Мульти-клиент платформа</h3>
+        <p>Учётки, цены, e-mail и расписания нескольких клиентов в одном интерфейсе с журналом
+           действий пользователя.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- REPORT GALLERY -->
+<section id="report">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Готовый отчёт</div>
+      <h2>Так выглядит результат для заказчика</h2>
+      <p>Светлый корпоративный стиль, читаемые цифры, выводы простым языком. Скриншоты —
+         реальный отчёт на демонстрационных данных. Кликните, чтобы увеличить.</p>
+    </div>
+    <div class="shots reveal">
+      <div class="shot lg"><img src="../screenshots/report_exec.png" alt="Экран для руководителя">
+        <div class="cap">Экран для руководителя: деньги и простой одним взглядом</div></div>
+      <div class="shot sm"><img src="../screenshots/report_hero.png" alt="Титул отчёта">
+        <div class="cap">Титул и ключевые KPI</div></div>
+      <div class="shot sm"><img src="../screenshots/report_financial.png" alt="Финансовая оценка">
+        <div class="cap">Финансовая оценка: куда уходят деньги</div></div>
+      <div class="shot half"><img src="../screenshots/report_fuel.png" alt="Топливная эффективность">
+        <div class="cap">Расход на 100 км — подвижная техника</div></div>
+      <div class="shot half"><img src="../screenshots/report_fleet.png" alt="Структура парка">
+        <div class="cap">Подвижная техника и спецтехника — разные метрики</div></div>
+      <div class="shot half"><img src="../screenshots/report_usage.png" alt="Использование парка">
+        <div class="cap">Использование парка и холостой ход</div></div>
+      <div class="shot half"><img src="../screenshots/report_loading.png" alt="Работа на погрузке">
+        <div class="cap">Модуль «Работа на погрузке» + GPS-карта</div></div>
+      <div class="shot half"><img src="../screenshots/report_recommendations.png" alt="Рекомендации">
+        <div class="cap">Рекомендации и план действий</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORM -->
+<section id="platform" class="alt">
+  <div class="wrap">
+    <div class="split">
+      <div class="reveal">
+        <div class="sec-head" style="margin-bottom:0">
+          <div class="kicker">Платформа</div>
+          <h2>Один экран — и отчёт готов</h2>
+          <p>Веб-интерфейс на Streamlit: выбрать клиента, период и цену топлива, нажать — и
+             получить отчёт с перерасходом, экономией и сигналами.</p>
+        </div>
+        <ul class="ul">
+          <li>Пресеты периода: день, неделя, месяц или произвольный диапазон</li>
+          <li>Цена ГСМ: сверка с поставщиком и календарь изменений по датам</li>
+          <li>Журнал обслуживания площадок при заведённых геозонах</li>
+          <li>Авторассылка отчётов и сигналов на e-mail по расписанию</li>
+          <li>Роли: менеджер формирует отчёты, администратор настраивает; действия логируются</li>
+          <li>Вход по логину, пароли — хешированы (PBKDF2)</li>
+        </ul>
+      </div>
+      <img class="reveal" src="../screenshots/platform.png" alt="Платформа Omnicomm Fleet Report">
+    </div>
+  </div>
+</section>
+
+<!-- ARCH / OUTPUTS -->
+<section id="arch">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kicker">Как устроено</div>
+      <h2>Надёжно к данным, аккуратно к выводам</h2>
+      <p>Архитектура построена вокруг единой модели данных: источник абстрагирован, бизнес-правила
+         защищают от ложных обвинений.</p>
+    </div>
+    <div class="grid g3" style="margin-bottom:34px">
+      <div class="card reveal"><div class="ic">🔌</div><h3>Omnicomm API, как надо</h3>
+        <p>Отчёты вызываются POST, батчинг ≤50 ТС / ≤31 дня, флэттен дерева ТС, корректные
+           единицы (топливо в децилитрах → литры).</p></div>
+      <div class="card reveal"><div class="ic">🧩</div><h3>Единая модель данных</h3>
+        <p>API и Excel приводятся к одному контракту — вся аналитика и отчёты не зависят от
+           источника.</p></div>
+      <div class="card reveal"><div class="ic">🛡️</div><h3>Бизнес-инварианты</h3>
+        <p>Аномалии — только «требует проверки», без обвинений. Перерасход не утверждается без
+           согласованных норм. «Сливы» не выводятся в отчёт клиента.</p></div>
+    </div>
+    <div class="sec-head reveal" style="margin-bottom:22px">
+      <div class="kicker">Форматы вывода</div>
+      <h2 style="font-size:24px">Один прогон — четыре формата</h2>
+    </div>
+    <div class="out reveal">
+      <span class="pill"><span class="d"></span>PPTX — презентация для совещания</span>
+      <span class="pill"><span class="d"></span>HTML — интерактивный отчёт в браузере</span>
+      <span class="pill"><span class="d"></span>PDF — печатная версия</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <h3>Omnicomm Fleet Report</h3>
+    <p>Платформа автоматического анализа автопарка по данным Omnicomm Online. Разработано для
+       коммунальной и спецтехники: мусоровозы, экскаваторы, транспорт.</p>
+    <div class="meta">
+      <span>Python · Streamlit · Omnicomm REST API</span>
+      <span>Деньги — в тенге (₸)</span>
+      <span>TechnoKod</span>
+    </div>
+  </div>
+</footer>
+
+<!-- lightbox -->
+<div class="lb" id="lb"><span class="close">×</span><img id="lbimg" src="" alt=""></div>
+
+<script>
+  // scroll reveal
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){
+    e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.14});
+  document.querySelectorAll('.reveal').forEach((el,i)=>{
+    el.style.transitionDelay=(Math.min(i%4,3)*60)+'ms';io.observe(el);});
+
+  // lightbox
+  const lb=document.getElementById('lb'),lbimg=document.getElementById('lbimg');
+  document.querySelectorAll('.shot img,.split img').forEach(img=>{
+    img.addEventListener('click',()=>{lbimg.src=img.src;lb.classList.add('open');});
+  });
+  lb.addEventListener('click',()=>lb.classList.remove('open'));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
+</script>
+</body>
+</html>

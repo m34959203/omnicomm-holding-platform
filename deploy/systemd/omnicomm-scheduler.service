@@ -1,0 +1,15 @@
+[Unit]
+Description=Omnicomm Fleet Report — планировщик авторассылки (демон)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/omnicomm-fleet-report
+Environment=PYTHONPATH=%h/omnicomm-fleet-report/src
+EnvironmentFile=-%h/omnicomm-fleet-report/.env
+ExecStart=/usr/bin/python3 -m omnicomm_report.scheduler
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

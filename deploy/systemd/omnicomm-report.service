@@ -1,0 +1,15 @@
+[Unit]
+Description=Omnicomm Fleet Report — платформа (Streamlit)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/omnicomm-fleet-report
+Environment=PYTHONPATH=%h/omnicomm-fleet-report/src
+EnvironmentFile=-%h/omnicomm-fleet-report/.env
+ExecStart=/usr/bin/python3 -m streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false --browser.gatherUsageStats false
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

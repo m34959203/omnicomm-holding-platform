@@ -1,0 +1,39 @@
+# Секреты — НИКОГДА не коммитить (ТЗ §4.6)
+.env
+.env.local
+.env.*.local
+*.token
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Артефакты отчётов (генерируются) — игнорируем всё в output/, кроме .gitkeep
+output/*
+!output/.gitkeep
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Данные платформы (учётки клиентов, паспорта) — не коммитить
+data/
+
+# Логи процессов
+logs/
+docs/*.docx

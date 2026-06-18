@@ -1,0 +1,260 @@
+"""Параметры, секреты и константы лимитов (ТЗ §4, §12).
+
+Секреты берутся ТОЛЬКО из переменных окружения (ТЗ §4.6) — в коде
+ни логина, ни пароля, ни токенов. Токены никогда не логируются.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from enum import Enum
+
+
+def load_env_file(path: str = ".env") -> None:
+    """Подтянуть .env в окружение БЕЗ зависимостей (cron-команда его не сорсит).
+
+    Существующие переменные окружения НЕ перетираются. Вызывать в точках входа
+    (app.py, scheduler, __main__), чтобы APP_CRYPTO_KEY/SMTP/прочее были доступны
+    процессам, запущенным голым `env … python`.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except OSError:
+        pass
+
+
+# --- Деньги и нормы (валюта — тенге, ₸) ---------------------------------------
+
+CURRENCY = "₸"                       # вся денежная оценка в отчёте — в тенге
+# Дефолт цены топлива (₸/л ДТ, РК-ориентир). Переопределяется: ENV FUEL_PRICE_KZT,
+# флагом CLI --fuel-price, полем клиента в платформе. Не хардкод — это лишь default.
+DEFAULT_FUEL_PRICE_KZT = float(os.getenv("FUEL_PRICE_KZT", "320") or 320)
+# Консервативная достижимая доля сокращения простоя (бенчмарк: 40-60% за 30 дней;
+# берём осторожные 30% для оценки потенциальной экономии «снизу»).
+IDLE_REDUCIBLE_SHARE = 0.30
+
+# Эвристика типа ТС: если на моточас приходится мало пробега — это стационарная
+# спецтехника (экскаватор/харвестер/генератор), для неё корректна метрика
+# л/моточас, а не л/100км. Порог — средняя скорость по моточасам, км/ч.
+STATIONARY_KM_PER_HOUR = 5.0
+
+# Нормы расхода по ключу (подстрока имени/группы ТС, нижний регистр). Пусто —
+# нормы не заданы, вывод о перерасходе не делается (бизнес-инвариант).
+FUEL_NORMS_PER_100KM: dict[str, float] = {}
+FUEL_NORMS_PER_MOTORHOUR: dict[str, float] = {}
+
+# Цель по доле холостого хода (Geotab benchmark) — для подсветки и экономии.
+IDLE_TARGET_SHARE = 0.05
+# Минимальная наработка ТС для участия в рейтингах холостого хода, мч:
+# доля «93%» при 0.4 мч — шум данных, а не лидер простоя.
+MIN_HOURS_FOR_IDLE_RANK = 5.0
+
+# --- Коэффициенты к нормам расхода (методики Минтранса) -----------------------
+# Множители к ожидаемому расходу. Применяются к норме при расчёте перерасхода.
+NORM_COEFFICIENTS = {
+    "winter": 1.10,      # зимняя надбавка (РК ~6-12%, берём 10%)
+    "dump": 1.15,        # работа на свалке/в карьере (+10-20%)
+    "city": 1.10,        # частые остановки в городе (+10%)
+    "wear": 1.05,        # износ ТС > 5 лет (+5%)
+}
+
+# --- Авто-алерты руководителю ------------------------------------------------
+ALERT_OVERRUN_COST_KZT = 100_000     # перерасход по ТС выше → алерт, ₸
+ALERT_IDLE_SHARE = 0.50              # доля холостого хода выше → алерт
+ALERT_NODATA_SHARE = 0.10           # доля «тёмных» ТС выше → алерт по парку
+
+# Бенчмарк «среднее по паркам» показываем только при достаточном числе ДРУГИХ
+# клиентов — иначе «среднее» по одному парку вводит в заблуждение.
+MIN_BENCHMARK_PEERS = 2
+
+# Сценарии «что если» — на сколько сократить простой (доли).
+WHATIF_IDLE_CUTS = (0.10, 0.20, 0.30)
+
+# --- Экономический эффект (economics.py, docs/STRATEGY.md §4.1) ----------------
+# 1 ч холостого хода ≈ N км эквивалентного износа двигателя — конвенция
+# severe-duty (Cummins ISX: 30/50/70 миль→км для severe/normal/light классов;
+# для мусоровозов/спецтехники берём severe ≈ 30 км).
+IDLE_WEAR_KM_PER_HOUR = 30.0
+# Стоимость ТО на км для тяжёлой техники, ₸/км — отраслевая ОЦЕНКА (ATRI 2025:
+# R&M ≈ $0.123/км; для КЗ консервативно ниже). 0 = корзина «Износ и ТО» не
+# считается. Переопределяется per-client при появлении фактических данных ТО.
+MAINT_COST_PER_KM_KZT = float(os.getenv("MAINT_COST_PER_KM_KZT", "40") or 40)
+# Консервативный эффект программ эко-вождения на топливо в движении
+# (исследования: устойчивые 5-10%; берём нижнюю границу). Только «потенциал».
+ECO_DRIVING_SAVE_SHARE = 0.05
+
+# Себестоимость вывоза: контейнеров на точку погрузки (для оценки ₸/контейнер).
+CONTAINERS_PER_POINT = 1.0          # уточняется заказчиком
+
+# Порог правдоподобия макс. скорости, км/ч: выше — сбой GPS (напр. 655 км/ч),
+# не учитываем в KPI и помечаем «требует проверки». Глобальный предел.
+MAX_PLAUSIBLE_SPEED_KMH = 200.0
+
+# Класс-зависимый предел макс. скорости (Cowork-ревью: мусоровоз ≠ 168 км/ч).
+# Применяется после классификации типа; выше — сбой GPS → отсев из KPI.
+MAX_PLAUSIBLE_SPEED_BY_TYPE = {
+    "refuse_truck": 110.0, "vacuum_sweeper": 110.0, "dump_truck": 110.0,
+    "truck": 130.0, "bus": 110.0, "car": 180.0,
+    "excavator": 40.0, "crane": 50.0, "loader": 50.0, "tractor": 60.0,
+}
+
+
+# --- Модуль «Работа на погрузке» (спецтехника/мусоровозы) ---------------------
+
+# Единицы Omnicomm consolidatedReport (сверено с developers.omnicomm.ru/api.yaml):
+# топливо (fuelConsumption, fuelConsumptionWOMovement, univInputOnConsumption,
+# refuelling, draining) — в ДЕЦИЛИТРАХ → литры = значение / 10.
+DECILITRES_TO_LITRES = 10.0
+
+# GPS-кластеризация точек погрузки (track): стоянка = speed 0, достаточно спутников,
+# в радиусе и не короче порога.
+TRACK_STOP_RADIUS_M = 50          # радиус кластера стоянок, м
+TRACK_MIN_STOP_SEC = 180          # минимальная длительность стоянки-погрузки, с
+TRACK_MIN_SATELLITES = 4          # ниже — координата недостоверна, точку отбрасываем
+
+# Бессенсорная оценка погрузки по GPS-остановкам маршрута (нет датчика надстройки
+# и оборотов). Откалибровано на боевом прогоне Горкомтранс (2026-06-07, 458 стоянок
+# с 20 мусоровозов, треки 02–06.06, детектором cluster_track_points): распределение
+# бимодальное — короткие 0–1 мин (~27%) и рабочий бугор 8–12 мин (~13%), провал на
+# 12–15 мин, затем «парковочный» хвост >60 мин (~22%, база/ночь). Окно обслуживания
+# [MIN..MAX] отсекает светофоры снизу и стоянки/простой сверху.
+LOADING_STOP_MIN_SEC = 60         # мин. остановка-обслуживание, с (короче — светофор/манёвр)
+LOADING_STOP_MAX_SEC = 900        # макс. остановка-обслуживание, с (15 мин; дольше — стоянка/простой)
+# Гоча калибровки: на стоянке GPS даёт джиттер скорости 0.4–1 км/ч; строгое speed>0
+# рвало стоянку на куски (детектор находил ~3 стоянки/день вместо ~20). Порог «стоит»
+# вынесен в cluster_track_points(speed_eps=1.5). Спутники на стоянке часто 0 →
+# для оценки погрузки кластеризуем с min_satellites=0 (см. data_loader).
+
+# Удельный расход гидравлики выше — пометить «требует проверки» (выброс).
+LOADING_FUEL_PER_MH_REVIEW = 120.0
+
+# Правило заказчика по режимам работы по оборотам: <1000 об/мин — холостой ход,
+# >1000 — техника в работе. Omnicomm отдаёт ВРЕМЯ в трёх полосах (idlingRPM/
+# normalRPM/workedUnderLoadRPM), а не сырые обороты, поэтому «1000» — это порог
+# полосы «под нагрузкой» (настраивается на терминале), а не извлекаемое значение.
+# Дедукция: обороты под нагрузкой + GPS неподвижна = работает гидравлика (погрузка).
+RPM_WORK_THRESHOLD = 1000  # ориентир, об/мин (документирует бизнес-правило)
+
+
+# --- Эталонная конфигурация клиента (ТЗ §4.5) ---------------------------------
+
+MAX_IDS_PER_REQUEST = 15        # пачка ID в одном запросе
+SLEEP_TIME = 0.4                # сек, пауза между запросами
+DEFAULT_TIMEOUT = 30            # сек, таймаут обычного HTTP-запроса
+REPORT_TIMEOUT = 180            # сек, таймаут тяжёлых report-POST (много ТС × дни)
+SKEW_SECONDS = 120              # запас по сроку токена — обновлять заранее
+
+LOGIN_MAX_RETRIES = 5           # login — до 5 попыток
+REFRESH_MAX_RETRIES = 3         # refresh — до 3 попыток
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+# Лимиты Omnicomm (раздел «Ограничения») — для самоконтроля клиента
+RATE_AUTHORIZED_PER_MIN = 180   # авторизованные вызовы / мин / пользователь
+RATE_FAILED_AUTH_PER_MIN = 10   # неуспешные авторизации / мин / IP
+RATE_UNAUTH_PER_MIN = 60        # неавторизованные вызовы / мин / IP
+
+
+# --- Контуры (ТЗ §4.1) --------------------------------------------------------
+
+# Демо-контур для отладки — адрес именно по HTTP (подтверждено документацией).
+DEMO_BASE_URL = "http://online.omnicomm.ru"
+DEMO_LOGIN = "rudemoru"
+DEMO_PASSWORD = "rudemo123456"
+
+# Боевой kz-контур — точный адрес подтверждается отделом техобслуживания Omnicomm.
+DEFAULT_PROD_BASE_URL = "https://kz.omnicomm.online"
+
+
+# --- Эндпоинты (ТЗ §4.3) ------------------------------------------------------
+
+ENDPOINTS = {
+    "login": "/auth/login?jwt=1",
+    "refresh": "/auth/refresh",
+    "vehicle_tree": "/ls/api/v2/tree/vehicle",
+    "reports_catalog": "/ls/api/v1/reports/",
+    "consolidated_report": "/ls/api/v1/reports/consolidatedReport",
+    "events_v1": "/ls/api/v1/reports/events/",
+    "events_v2": "/ls/api/v2/reports/events/",
+    "activity_vehicles": "/ls/api/v1/activity/vehicles",
+    "drivers": "/ls/api/v1/drivers",
+    "track": "/ls/api/v1/reports/track/{id}",
+    "geozones_report": "/ls/api/v1/reports/geozones",
+    "geozones_list": "/api/service/geozones/geozones",
+    "links": "/ls/api/v1/reports/links",
+}
+
+# Геозоны-площадки: мин. длительность визита для журнала (минуты).
+GEOZONE_MIN_VISIT_MIN = 3
+
+# Ключевые отчёты (ТЗ §4.4) — id подтверждаются вызовом каталога на контуре.
+REPORT_CONSOLIDATED_ID = 32     # consolidatedreport (FAS, FTC)
+REPORT_FUEL_EVENTS_ID = 8       # fueleventsreport
+
+
+@dataclass
+class Settings:
+    """Среда выполнения. Загружается из ENV: LOGIN, PASSWORD, SERVICE."""
+
+    base_url: str = DEFAULT_PROD_BASE_URL
+    login: str = ""
+    password: str = ""
+    service: str = ""           # имя сервиса/контура, если требуется
+
+    @classmethod
+    def from_env(cls, *, demo: bool = False) -> "Settings":
+        if demo:
+            return cls(
+                base_url=DEMO_BASE_URL,
+                login=os.getenv("LOGIN", DEMO_LOGIN),
+                password=os.getenv("PASSWORD", DEMO_PASSWORD),
+                service=os.getenv("SERVICE", ""),
+            )
+        return cls(
+            base_url=os.getenv("OMNICOMM_BASE_URL", DEFAULT_PROD_BASE_URL),
+            login=os.getenv("LOGIN", ""),
+            password=os.getenv("PASSWORD", ""),
+            service=os.getenv("SERVICE", ""),
+        )
+
+
+# --- Коды ошибок Omnicomm (полный официальный список, ТЗ §4.5) ----------------
+
+class ErrorAction(str, Enum):
+    """Что делает клиент при получении кода ошибки Omnicomm."""
+
+    OK = "ok"                       # норма
+    ABORT = "abort"                 # прервать запрос, не ретраить
+    REAUTH = "reauth"               # выполнить login/refresh и повторить
+    MARK_NO_DATA = "mark_no_data"   # пометить ТС «нет данных», НЕ прерывать отчёт
+    RETRY = "retry"                 # ретрай, затем лог
+
+
+# code -> (англ. имя, значение, действие клиента)
+OMNICOMM_ERRORS: dict[int, tuple[str, str, ErrorAction]] = {
+    0:  ("No errors",          "Ошибок нет",                                ErrorAction.OK),
+    1:  ("Signing in failed",  "Неверный логин/пароль",                     ErrorAction.ABORT),
+    2:  ("Authorization required", "Требуется авторизация",                 ErrorAction.REAUTH),
+    3:  ("Dead session number", "Сессия закончена",                         ErrorAction.REAUTH),
+    4:  ("Bad interval",       "Неверный временной интервал",               ErrorAction.ABORT),
+    5:  ("Bad object",         "Объекта с таким ID нет",                    ErrorAction.MARK_NO_DATA),
+    6:  ("Admin login",        "Авторизация под админ-правами",             ErrorAction.ABORT),
+    7:  ("Unusable object",    "Значение не рассчитывается для объекта",    ErrorAction.MARK_NO_DATA),
+    8:  ("Bad event type",     "Тип события не существует",                 ErrorAction.ABORT),
+    9:  ("Access denied",      "Нет прав доступа на объект",                ErrorAction.MARK_NO_DATA),
+    10: ("Data not found",     "Данные не найдены",                         ErrorAction.MARK_NO_DATA),
+    11: ("Blocked interval",   "Период содержит блокировки данных",         ErrorAction.MARK_NO_DATA),
+    12: ("Bad object type",    "Тип объекта не существует",                 ErrorAction.ABORT),
+    13: ("Invalid format",     "Неверный формат",                           ErrorAction.ABORT),
+    14: ("Undefined error",    "Неопределённая ошибка",                     ErrorAction.RETRY),
+    15: ("404",                "Несуществующая страница",                   ErrorAction.ABORT),
+}

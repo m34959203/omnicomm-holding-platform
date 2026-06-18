@@ -1,0 +1,24 @@
+# Ядро (ТЗ §11)
+requests>=2.31,<3
+pandas>=2.2,<3
+openpyxl>=3.1,<4
+matplotlib>=3.8,<4
+python-pptx>=0.6.23,<1.1
+python-dotenv>=1.0,<2
+
+# Веб-интерфейс (ТЗ §13) — `streamlit run app.py`
+streamlit>=1.33
+
+# Опционально — REST API-обёртка (ТЗ §11)
+# fastapi>=0.110
+# uvicorn>=0.29
+
+# Опционально — парсер цены ГСМ у поставщика (сверка/автоподстановка).
+# Сайт отдаёт 403 на простой запрос → нужен headless-браузер. Без playwright
+# сверка цены тихо пропускается (отчёт не зависит).
+# playwright>=1.40   (+ python -m playwright install chromium)
+
+# Опционально — PDF-экспорт отчёта (ТЗ §10)
+# Требует системного LibreOffice ИЛИ:
+# pdf2image, либо рендер через сторонний конвертер — см. docs/api.md
+cryptography>=41,<46  # шифрование кредов клиентов (Fernet)
