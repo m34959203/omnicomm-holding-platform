@@ -121,14 +121,20 @@ def _make_vehicle(vid: str, name: str, org_id: str, kind: str,
     # и часть мобильных с высоким простоем — чтобы лента сигналов была живой.
     thirsty = r.random() < 0.10
     high_idle = r.random() < 0.18
+    speeder = r.random() < 0.15
 
     if kind == "transport":
         engine_hours = r.uniform(6.0, 11.0) * days
         mileage_km = r.uniform(90.0, 240.0) * days          # км/моточас >> 5 → мобильный
         per_100 = r.uniform(0.28, 0.42) * (r.uniform(1.8, 2.4) if thirsty else 1.0)
         fuel_l = mileage_km * per_100                        # ~28–42 (прожорл. выше) л/100км
-        max_speed = r.uniform(62.0, 96.0)
-        speeding_km = mileage_km * r.uniform(0.0, 0.12)
+        # часть мобильных — нарушители скоростного режима (выше доля + макс. скорость)
+        if speeder:
+            max_speed = r.uniform(98.0, 118.0)
+            speeding_km = mileage_km * r.uniform(0.15, 0.30)
+        else:
+            max_speed = r.uniform(62.0, 96.0)
+            speeding_km = mileage_km * r.uniform(0.0, 0.09)
         speeding_count = int(speeding_km / max(1.0, r.uniform(8, 20)))
         # высокий холостой ход — признак мобильных (у спецтехники простой = норма)
         idle_share = r.uniform(0.52, 0.68) if high_idle else r.uniform(0.22, 0.42)

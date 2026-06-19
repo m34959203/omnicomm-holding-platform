@@ -79,6 +79,22 @@ def build_alerts(report: FleetReport) -> list[str]:
                 f"двигатель работает стоя — проверить режим."
             )
 
+    # Превышения скорости по ТС (скоростной режим — безопасность).
+    spd_rows = []
+    for v in report.vehicles:
+        if not v.has_data or not v.mileage_km or not v.speeding_mileage_km:
+            continue
+        share = v.speeding_mileage_km / v.mileage_km
+        if share >= config.ALERT_SPEEDING_SHARE:
+            spd_rows.append((v, share))
+    spd_rows.sort(key=lambda t: t[1], reverse=True)
+    for v, share in spd_rows[:10]:
+        ms = f", макс {v.max_speed_kmh:.0f} км/ч" if v.max_speed_kmh else ""
+        out.append(
+            f"Скоростной режим: «{v.name}» {share * 100:.0f}% пробега с превышением"
+            f"{ms} — проверить."
+        )
+
     # Много «тёмных» ТС по парку.
     no_data = kpi.vehicles_total - kpi.vehicles_with_data
     if kpi.vehicles_total and no_data / kpi.vehicles_total >= config.ALERT_NODATA_SHARE:
