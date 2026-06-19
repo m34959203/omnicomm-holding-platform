@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import streamlit as st  # noqa: E402
 
-from omnicomm_report import auth, dashboard, holding, org as org_mod  # noqa: E402
+from omnicomm_report import auth, dashboard, demo_data, holding, org as org_mod  # noqa: E402
 from omnicomm_report.config import Settings, load_env_file  # noqa: E402
 from omnicomm_report.models import ReportPeriod  # noqa: E402
 from omnicomm_report.org import DEFAULT_ORG_REGISTRY, OrgLevel  # noqa: E402
@@ -71,11 +71,20 @@ def _load_registry(path: str, mtime: float):
     return org_mod.load_org_registry(path)
 
 
-# Предпочитаем SQLite-реестр, если он есть; иначе JSON (диспетч в org.load_org_registry).
-_REG_CANDIDATES = [os.path.join("data", "org_registry.db"), DEFAULT_ORG_REGISTRY]
-_reg_path = next((p for p in _REG_CANDIDATES if os.path.exists(p)), None)
-registry = (_load_registry(_reg_path, os.path.getmtime(_reg_path))
-            if _reg_path else None)
+# Демо-режим: синтетический холдинг КАП без API (пока нет боевой учётки Omnicomm).
+DEMO_MODE = st.sidebar.checkbox(
+    "Демо-режим (без API)", value=True,
+    help="Синтетический холдинг КАП для показа работы системы. "
+         "Снимите галочку, когда подключите боевую учётку Omnicomm.")
+
+if DEMO_MODE:
+    registry = demo_data.build_demo_registry()
+else:
+    # Предпочитаем SQLite-реестр, если он есть; иначе JSON (диспетч в org.load_org_registry).
+    _REG_CANDIDATES = [os.path.join("data", "org_registry.db"), DEFAULT_ORG_REGISTRY]
+    _reg_path = next((p for p in _REG_CANDIDATES if os.path.exists(p)), None)
+    registry = (_load_registry(_reg_path, os.path.getmtime(_reg_path))
+                if _reg_path else None)
 
 with st.sidebar:
     st.markdown(f"**{USER}** · {'админ' if IS_ADMIN else 'ДЗО'}")
@@ -129,16 +138,20 @@ if st.button("Сформировать дашборд", type="primary"):
         start=datetime.combine(d_from, time.min, tzinfo=timezone.utc),
         end=datetime.combine(d_to, time.max, tzinfo=timezone.utc))
 
-    with st.spinner("Запрос данных из Omnicomm и сборка дашборда…"):
-        try:
-            from omnicomm_report.api_client import OmnicommClient
-            client = OmnicommClient(Settings.from_env())
-            client.login()
-            _, vehicles = holding.fetch_fleet(client, period)
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"Не удалось получить данные из Omnicomm: {exc}\n\n"
-                     "Проверьте креды в .env (LOGIN/PASSWORD/SERVICE).")
-            st.stop()
+    with st.spinner("Сборка демо-дашборда…" if DEMO_MODE
+                    else "Запрос данных из Omnicomm и сборка дашборда…"):
+        if DEMO_MODE:
+            vehicles = demo_data.demo_fleet(period)
+        else:
+            try:
+                from omnicomm_report.api_client import OmnicommClient
+                client = OmnicommClient(Settings.from_env())
+                client.login()
+                _, vehicles = holding.fetch_fleet(client, period)
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Не удалось получить данные из Omnicomm: {exc}\n\n"
+                         "Проверьте креды в .env (LOGIN/PASSWORD/SERVICE).")
+                st.stop()
 
         org_mod.assign_org_ids(vehicles, registry.vehicle_org)
         report = dashboard.build_org_report(

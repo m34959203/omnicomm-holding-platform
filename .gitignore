@@ -37,3 +37,5 @@ data/
 # Логи процессов
 logs/
 docs/*.docx
+.deps
+.venv
