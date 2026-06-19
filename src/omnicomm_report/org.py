@@ -226,7 +226,11 @@ def build_from_omnicomm_tree(
         for obj in node.get("objects") or []:
             if not isinstance(obj, dict):
                 continue
-            vid = str(obj.get("uuid") or obj.get("id") or obj.get("terminal_id") or "").strip()
+            # Ключ ТС должен совпадать с identity в метриках: data_loader заполняет
+            # VehicleMetrics.vehicle_id из vehicleId отчёта (= terminal_id), и name_map
+            # тоже ключуется terminal_id→id→uuid. Тот же порядок здесь, иначе
+            # assign_org_ids не найдёт ТС (баг: реестр по uuid, метрики по terminal_id).
+            vid = str(obj.get("terminal_id") or obj.get("id") or obj.get("uuid") or "").strip()
             if vid:
                 vehicle_org[vid] = nid
         for child in node.get("children") or []:
