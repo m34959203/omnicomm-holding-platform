@@ -167,3 +167,20 @@ def test_baseline_adapters_feed_select_suspects(tmp_path):
     cap_base = sh.to_capability_baseline(baselines)
     assert sh.select_suspects(fleet, cap_base, focus=Capability.FUEL) == ["7"]
     assert sh.to_dut_baseline(baselines) == {"7": {1}}
+
+
+# --- Факты нарушений (идемпотентность) ---------------------------------------
+
+def test_violations_upsert_idempotent(tmp_path):
+    from omnicomm_report import store
+    from omnicomm_report.speeding import Violation
+    db = str(tmp_path / "reg.db")
+    v = Violation(terminal_id="7", geozone="Трасса", limit=60, max_speed=85.0,
+                  excess=25.0, duration_s=60, start_ts=3, points=3,
+                  public_road=True, st_kap_severity="существенное",
+                  koap_article="ст.592 ч.2")
+    # два прогона по тем же суткам (same start_ts) → одна запись
+    assert store.save_violations([v], db, loaded_at=100) == 1
+    assert store.save_violations([v], db, loaded_at=200) == 1   # не дубль
+    loaded = store.load_violations(db, terminal_id="7")
+    assert len(loaded) == 1 and loaded[0].excess == 25.0 and loaded[0].public_road is True

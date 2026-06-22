@@ -55,6 +55,24 @@ CREATE TABLE IF NOT EXISTS to_state (
     t0          INTEGER,          -- начало текущего цикла наработки
     last_to_at  INTEGER           -- когда подтверждено последнее ТО
 );
+
+-- Факты нарушений: natural key (terminal_id, start_ts) → идемпотентность
+-- (повторный прогон/пересчёт Omnicomm по тем же суткам не плодит дубли).
+CREATE TABLE IF NOT EXISTS violation (
+    terminal_id   TEXT NOT NULL,
+    start_ts      INTEGER NOT NULL,
+    geozone       TEXT,
+    limit_kmh     INTEGER,
+    max_speed     REAL,
+    excess        REAL,
+    duration_s    INTEGER,
+    public_road   INTEGER,
+    severity      TEXT,
+    koap_article  TEXT,
+    source_loaded_at INTEGER,
+    PRIMARY KEY (terminal_id, start_ts)
+);
+CREATE INDEX IF NOT EXISTS idx_violation_terminal ON violation(terminal_id);
 """
 
 
@@ -227,3 +245,56 @@ def load_maintenance(path: str) -> tuple:
              r[4] if r[4] is not None else 500.0) for r in prows}
     states = {str(r[0]): MaintenanceState(str(r[0]), r[1], r[2]) for r in srows}
     return plans, states
+
+
+# --- Факты нарушений (идемпотентный UPSERT) ----------------------------------
+
+def save_violations(violations, path: str, loaded_at: Optional[int] = None) -> int:
+    """UPSERT нарушений по natural key (terminal_id, start_ts). Повторный прогон по
+    тем же суткам перезаписывает, не плодит дубли. Возвращает число записей."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    conn = _connect(path)
+    try:
+        conn.executescript(SCHEMA)
+        conn.executemany(
+            "INSERT INTO violation(terminal_id, start_ts, geozone, limit_kmh, "
+            "max_speed, excess, duration_s, public_road, severity, koap_article, "
+            "source_loaded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(terminal_id, start_ts) DO UPDATE SET geozone=excluded.geozone, "
+            "limit_kmh=excluded.limit_kmh, max_speed=excluded.max_speed, "
+            "excess=excluded.excess, duration_s=excluded.duration_s, "
+            "public_road=excluded.public_road, severity=excluded.severity, "
+            "koap_article=excluded.koap_article, source_loaded_at=excluded.source_loaded_at",
+            [(str(v.terminal_id), int(v.start_ts), v.geozone, v.limit,
+              v.max_speed, v.excess, v.duration_s, int(v.public_road),
+              v.st_kap_severity, v.koap_article, loaded_at) for v in violations],
+        )
+        conn.commit()
+        return conn.execute("SELECT COUNT(*) FROM violation").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def load_violations(path: str, terminal_id: Optional[str] = None) -> list:
+    """Прочитать нарушения (как speeding.Violation). Опц. фильтр по ТС."""
+    if not os.path.exists(path):
+        return []
+    from .speeding import Violation
+    conn = _connect(path)
+    try:
+        try:
+            q = ("SELECT terminal_id, start_ts, geozone, limit_kmh, max_speed, "
+                 "excess, duration_s, public_road, severity, koap_article FROM violation")
+            args = ()
+            if terminal_id is not None:
+                q += " WHERE terminal_id=?"
+                args = (str(terminal_id),)
+            rows = conn.execute(q, args).fetchall()
+        except sqlite3.OperationalError:
+            return []
+    finally:
+        conn.close()
+    return [Violation(terminal_id=str(r[0]), start_ts=r[1], geozone=r[2], limit=r[3],
+                      max_speed=r[4], excess=r[5], duration_s=r[6], points=0,
+                      public_road=bool(r[7]), st_kap_severity=r[8], koap_article=r[9])
+            for r in rows]
