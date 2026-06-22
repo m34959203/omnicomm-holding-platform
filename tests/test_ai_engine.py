@@ -64,8 +64,15 @@ def test_fallback_on_api_error(monkeypatch):
     assert out == _rec().as_text()           # graceful fallback
 
 
-def test_facts_have_no_summed_fine():
-    facts = ai_engine._facts(_rec())
-    assert facts["статья_КоАП"] == "ст.592 ч.2"
-    assert "задолженность" not in str(facts).lower()
-    assert facts["ставка_за_случай_тенге"] is None
+def test_ai_receives_system_text_not_domain_rules(monkeypatch):
+    # ИИ — только взаимодействие: на вход идёт ГОТОВЫЙ текст системы,
+    # а не датасет/правила. Системный промпт не содержит доменных знаний.
+    monkeypatch.setattr(config, "AI_RECOMMENDATIONS_ENABLED", True)
+    fake = _FakeClient("переписано")
+    ai_engine.polish_recommendation(_rec(), client=fake)
+    kw = fake.messages.last_kwargs
+    user = kw["messages"][0]["content"]
+    assert user.endswith(_rec().as_text())            # вход = текст системы
+    assert "задолженность" not in user.lower()
+    # промпт про форму, без правил «КоАП/дисциплинарка»
+    assert "ст.592" not in kw["system"] and "СТ КАП" not in kw["system"]
