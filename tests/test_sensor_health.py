@@ -132,6 +132,46 @@ def test_gps_health_counts_valid_points():
 
 # --- сводка ------------------------------------------------------------------
 
+# --- сенсор-уровень из «Журнала» --------------------------------------------
+
+def _packet(**over):
+    # форма реального пакета click/log (ДУТ как массивы по 6 слотам)
+    p = {"EVENT_DATE": 1782140091, "U_BOARD": 258, "U_BOARD_PRESENT": 1,
+         "LLS_ID": [1, 2, 3, 4, 5, 6],
+         "LLS_CODE_PRESENT": [1, 0, 0, 0, 0, 0],
+         "IS_EXTERNAL_SUPPLY_BROKEN": 0, "SATELLITES_NMB": 0}
+    p.update(over)
+    return p
+
+
+def test_journal_health_parses_voltage_and_dut_slots():
+    jh = sh.journal_health("5", [_packet(), _packet()])
+    assert jh.power_ok is True
+    assert jh.board_volts_max == 25.8           # 258 децивольт → 25.8 В
+    assert jh.dut_reporting == {1}              # отдаёт только слот №1
+    assert jh.supply_broken is False
+
+
+def test_diagnose_dut_failure_with_power_gate():
+    # baseline: слоты 1 и 2 должны отдавать; в окне отдаёт только 1, питание есть
+    jh = sh.journal_health("5", [_packet()])
+    assert sh.diagnose_dut_failure(jh, [1, 2]) == [2]  # №2 молчит = сбой
+
+
+def test_diagnose_dut_failure_suppressed_when_no_power():
+    # питание просело (бортсеть 0.5 В) → молчание датчиков НЕ их вина
+    jh = sh.journal_health("5", [_packet(U_BOARD=5)])  # 0.5 В
+    assert jh.power_ok is False
+    assert sh.diagnose_dut_failure(jh, [1, 2]) == []
+
+
+def test_journal_health_gps_and_supply_flags():
+    jh = sh.journal_health("5", [
+        _packet(SATELLITES_NMB=6, IS_EXTERNAL_SUPPLY_BROKEN=1)])
+    assert jh.gps_ok is True
+    assert jh.supply_broken is True
+
+
 def test_assess_combines_traffic_lights_caps_and_gaps():
     activity = [{"id": 7, "dateID": (NOW - 30) * 1000}]
     consolidated = [{"consolidatedReport": {"vehicleId": 7,

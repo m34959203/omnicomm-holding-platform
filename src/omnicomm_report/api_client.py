@@ -452,6 +452,34 @@ class OmnicommClient:
         """
         return _as_list(self._request("GET", "activity_vehicles"))
 
+    def get_journal(self, terminal_id: str, period: ReportPeriod, *,
+                    groups: Optional[list[str]] = None,
+                    columns: Optional[list[str]] = None) -> list[dict]:
+        """Отчёт «Журнал» (сырьё по узлам): POST /ls/api/v1/click/log.
+
+        Возвращает пакеты терминала (строка на пакет) со всеми узлами и флагами
+        наличия `*_PRESENT`: ДУТ (`LLS_ID/LLS_CODE/LLS_CODE_PRESENT/LLS_STATUS`),
+        напряжение бортсети (`U_BOARD`), питание (`IS_EXTERNAL_SUPPLY_BROKEN`),
+        CAN/OBD/UNIVAL/IQFREEZE, акселерометр. Это даёт сенсор-уровневую детекцию.
+
+        ⚠️ ТЯЖЁЛЫЙ отчёт (все узлы каждого пакета) — звать ТОЧЕЧНО: один ТС,
+        короткое окно (часы/1–2 суток), при нужде фильтровать `groups`/`columns`.
+        `groups` ⊂ {GENERAL,NAVI,UNIVAL,CAN,OBD,MODBUS,LLS,IQFREEZE}.
+        """
+        body: dict[str, Any] = {"terminalId": int(terminal_id),
+                                "dateFrom": period.start_ts,
+                                "dateTo": period.end_ts}
+        if groups:
+            body["groups"] = list(groups)
+        if columns:
+            body["columns"] = list(columns)
+        data = self._request("POST", "journal", json_body=body,
+                             timeout=config.REPORT_TIMEOUT)
+        if isinstance(data, dict):
+            rows = data.get("columns")
+            return rows if isinstance(rows, list) else []
+        return _as_list(data)
+
     def list_geozones(self) -> list[dict]:
         """Геозоны клиента: GET /api/service/geozones/geozones (rows[])."""
         data = self._request("GET", "geozones_list")

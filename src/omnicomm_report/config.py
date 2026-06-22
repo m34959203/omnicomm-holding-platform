@@ -192,6 +192,8 @@ ENDPOINTS = {
     "geozones_report": "/ls/api/v1/reports/geozones",
     "geozones_list": "/api/service/geozones/geozones",
     "links": "/ls/api/v1/reports/links",
+    "journal": "/ls/api/v1/click/log",            # отчёт «Журнал» — сырьё по узлам
+    "journal_additional": "/ls/api/v1/click/log/additional",  # CAN/Modbus/польз.
 }
 
 # Геозоны-площадки: мин. длительность визита для журнала (минуты).

@@ -250,6 +250,79 @@ def gps_health(terminal_id: str, track: Iterable[dict],
                      valid_points=valid, ok=valid > 0)
 
 
+# --- Сенсор-уровень из «Журнала» (путь A: POST /ls/api/v1/click/log) ---------
+# «Журнал» доступен через REST и даёт по-датчиковые флаги наличия + напряжение
+# бортсети → развязка «нет питания vs датчик умер». Звать ТОЧЕЧНО (1 ТС, окно).
+
+# Минимальный набор для диагностики здоровья датчиков (фильтр по объёму).
+JOURNAL_HEALTH_GROUPS = ["GENERAL", "NAVI", "LLS", "CAN", "OBD", "UNIVAL"]
+JOURNAL_HEALTH_COLUMNS = [
+    "EVENT_DATE", "U_BOARD", "U_BOARD_PRESENT",
+    "LLS_ID", "LLS_CODE_PRESENT", "LLS_STATUS",
+    "IS_EXTERNAL_SUPPLY_BROKEN", "IS_IGNITION_ON",
+    "SATELLITES_NMB", "SATELLITES_NMB_PRESENT", "CAN_DT_PRESENT",
+]
+
+U_BOARD_SCALE = 10      # U_BOARD в децивольтах: 258 → 25.8 В
+POWER_OK_VOLTS = 7.0    # питание считаем «живым», если бортсеть выше этого
+
+
+@dataclass
+class JournalHealth:
+    terminal_id: str
+    packets: int
+    power_ok: bool                       # бортсеть выше порога хоть в одном пакете
+    board_volts_max: Optional[float]     # макс. напряжение бортсети, В
+    supply_broken: bool                  # был ли флаг обрыва внешнего питания
+    dut_reporting: set[int] = field(default_factory=set)  # слоты ДУТ, отдавшие данные
+    gps_ok: bool = False
+
+
+def journal_health(terminal_id: str, packets: Iterable[dict]) -> JournalHealth:
+    """Разобрать пакеты «Журнала» в здоровье узлов терминала.
+
+    LLS_ID / LLS_CODE_PRESENT — массивы по слотам ДУТ (1..6); слот «отдаёт
+    данные», если `LLS_CODE_PRESENT[i]=1` хоть в одном пакете окна.
+    """
+    pkts = [p for p in (packets or []) if isinstance(p, dict)]
+    volts = [(p.get("U_BOARD") or 0) / U_BOARD_SCALE
+             for p in pkts if p.get("U_BOARD_PRESENT")]
+    board_max = max(volts) if volts else None
+    reporting: set[int] = set()
+    gps_ok = False
+    supply_broken = False
+    for p in pkts:
+        if p.get("IS_EXTERNAL_SUPPLY_BROKEN"):
+            supply_broken = True
+        if (p.get("SATELLITES_NMB") or 0) >= 4:
+            gps_ok = True
+        ids = p.get("LLS_ID") or []
+        pres = p.get("LLS_CODE_PRESENT") or []
+        for i, sid in enumerate(ids):
+            if i < len(pres) and pres[i]:
+                reporting.add(sid)
+    return JournalHealth(
+        terminal_id=str(terminal_id), packets=len(pkts),
+        power_ok=board_max is not None and board_max >= POWER_OK_VOLTS,
+        board_volts_max=board_max, supply_broken=supply_broken,
+        dut_reporting=reporting, gps_ok=gps_ok,
+    )
+
+
+def diagnose_dut_failure(jh: JournalHealth,
+                         baseline_dut_ids: Iterable[int]) -> list[int]:
+    """ДУТ-слоты, которые ДОЛЖНЫ отдавать данные (baseline), но молчат при живом
+    питании → вероятный сбой ДУТ. Это и есть gate по напряжению бортсети:
+    нет питания → НЕ сбой датчика (вернём пусто).
+
+    `baseline_dut_ids` — слоты ДУТ, исторически передававшие данные на этом ТС
+    (из конфигурации/прошлого «здорового» окна).
+    """
+    if not jh.power_ok:
+        return []   # питания нет — молчание датчиков не их вина
+    return sorted(set(baseline_dut_ids) - jh.dut_reporting)
+
+
 # --- Сводка ------------------------------------------------------------------
 
 @dataclass
