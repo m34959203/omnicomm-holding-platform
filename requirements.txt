@@ -22,3 +22,4 @@ streamlit>=1.33
 # Требует системного LibreOffice ИЛИ:
 # pdf2image, либо рендер через сторонний конвертер — см. docs/api.md
 cryptography>=41,<46  # шифрование кредов клиентов (Fernet)
+anthropic>=0.91,<1   # AI-полировка рекомендаций (ai_engine.py), опционально

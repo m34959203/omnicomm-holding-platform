@@ -226,6 +226,15 @@ SPEEDING_MIN_SATELLITES = 4          # валидная GPS-точка
 SPEEDING_MAX_ACCEL_MS2 = 4.0         # |Δv/Δt| выше → GPS-выброс, точка отбрасывается
 
 
+# --- AI-полировка рекомендаций через Claude (Anthropic) — ai_engine.py --------
+# Claude ТОЛЬКО переформулирует посчитанные движком факты (статья/ставка/тип
+# дороги/действие), НЕ источник права. Нет ключа/сети → fallback на
+# детерминированный Recommendation.as_text(). Ключ — ANTHROPIC_API_KEY из ENV.
+AI_RECOMMENDATIONS_ENABLED = True
+AI_MODEL = "claude-opus-4-8"
+AI_MAX_TOKENS = 700
+
+
 # --- Sensor Health, путь C (docs/knowledge-base/10) ---------------------------
 # Терминальный «светофор» по давности данных (activity/vehicles → dateID).
 # Сенсор-уровень (адрес узла, напряжение бортсети) через REST недоступен —
