@@ -1,32 +1,23 @@
 "use client";
 
 import { SensorHealth } from "@/lib/api";
-import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-
-const TONE: Record<string, string> = {
-  online: "text-accent",
-  stale: "text-warn",
-  offline: "text-danger",
-  unknown: "text-ink-faint",
-};
-const DOT: Record<string, string> = {
-  online: "🟢", stale: "🟡", offline: "🔴", unknown: "⚪",
-};
+import { StackedBar } from "./charts";
 
 export default function SensorHealthPanel({ sh }: { sh: SensorHealth }) {
   const { t } = useLang();
-  const order = ["online", "stale", "offline", "unknown"] as const;
+
+  const segments = [
+    { label: t("sh.online"), value: sh.counts.online ?? 0, tone: "neutral" as const },
+    { label: t("sh.stale"), value: sh.counts.stale ?? 0, tone: "warn" as const },
+    { label: t("sh.offline"), value: sh.counts.offline ?? 0, tone: "danger" as const },
+    { label: t("sh.unknown"), value: sh.counts.unknown ?? 0, tone: "neutral" as const },
+  ].filter((s) => s.value > 0);
 
   return (
     <div>
-      <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
-        {order.map((k) => (
-          <div key={k} className="border-t border-line py-3">
-            <span className="eyebrow">{DOT[k]} {t(`sh.${k}`)}</span>
-            <p className={`data text-2xl ${TONE[k]}`}>{num(sh.counts[k] ?? 0)}</p>
-          </div>
-        ))}
+      <div className="mb-6">
+        <StackedBar segments={segments} />
       </div>
 
       <p className="data mb-4 text-xs text-ink-faint">{t("sh.terminal_note")}</p>

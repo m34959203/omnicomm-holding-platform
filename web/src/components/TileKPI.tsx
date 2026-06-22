@@ -29,7 +29,7 @@ export default function TileKPI({
         <span className="eyebrow">{label}</span>
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
       </div>
-      <span className={`data text-2xl leading-tight ${valueColor}`}>{value}</span>
+      <span className={`data whitespace-nowrap text-2xl leading-tight ${valueColor}`}>{value}</span>
       {sub && <span className="data text-[0.7rem] text-ink-faint">{sub}</span>}
       {share != null && (
         <span className="mt-1 block h-1 bg-line-strong">

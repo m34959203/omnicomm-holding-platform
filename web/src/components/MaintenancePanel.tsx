@@ -3,6 +3,7 @@
 import { Maintenance } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { StackedBar } from "./charts";
 
 const TONE: Record<string, string> = {
   "просрочено": "text-danger",
@@ -17,16 +18,16 @@ export default function MaintenancePanel({ mt }: { mt: Maintenance }) {
   };
   // показываем срочные (просрочено + ожидается); «ok» сворачиваем в счётчик
   const urgent = mt.items.filter((i) => i.status !== "ok");
+  const segments = [
+    { label: t("mt.overdue"), value: mt.counts["просрочено"] ?? 0, tone: "danger" as const },
+    { label: t("mt.due"), value: mt.counts["ожидается"] ?? 0, tone: "warn" as const },
+    { label: t("mt.ok"), value: mt.counts["ok"] ?? 0, tone: "neutral" as const },
+  ].filter((s) => s.value > 0);
 
   return (
     <div>
-      <div className="mb-6 grid grid-cols-3 gap-x-8">
-        {(["просрочено", "ожидается", "ok"] as const).map((k) => (
-          <div key={k} className="border-t border-line py-3">
-            <span className="eyebrow">{STAT[k]}</span>
-            <p className={`data text-2xl ${TONE[k]}`}>{num(mt.counts[k] ?? 0)}</p>
-          </div>
-        ))}
+      <div className="mb-6">
+        <StackedBar segments={segments} />
       </div>
 
       {urgent.length > 0 ? (

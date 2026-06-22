@@ -100,6 +100,20 @@ export default function Page() {
   );
   const signals = allSignals.slice(0, 6);
 
+  // Топ организаций по эпизодам превышений (terminal → org → имя), для графика Speed.
+  const speedByOrg = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of recsS) {
+      const name = byId.get(vehicleOrg[r.terminal_id])?.name;
+      if (!name) continue;
+      m.set(name, (m.get(name) ?? 0) + r.episodes);
+    }
+    return [...m.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [recsS, vehicleOrg, byId]);
+
   const onScope = (id: string) => { setScope(id); setDrawer(false); };
 
   return (
@@ -197,7 +211,7 @@ export default function Page() {
                 tab={tab} onTab={setTab}
                 eco={dash?.economics ?? null}
                 recs={recsS} sensor={sensorS} maint={maintS}
-                geos={geos} scoped={scoped}
+                geos={geos} scoped={scoped} speedByOrg={speedByOrg}
               />
             </div>
           </div>

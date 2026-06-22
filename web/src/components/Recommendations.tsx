@@ -1,18 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Recommendation } from "@/lib/api";
 import { num } from "@/lib/format";
+import { useLang } from "@/lib/i18n";
+import { ColumnChart, RankBars } from "./charts";
 
 const SEV_TONE: Record<string, string> = {
   грубое: "text-danger",
   значительное: "text-warn",
 };
 
-export default function Recommendations({ recs }: { recs: Recommendation[] }) {
+const DEFAULT_SHOWN = 12;
+
+export default function Recommendations({
+  recs, topOrgs = [],
+}: {
+  recs: Recommendation[];
+  topOrgs?: { label: string; value: number }[];
+}) {
+  const { t } = useLang();
   const [open, setOpen] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
   const gross = recs.filter((r) => r.worst_severity === "грубое").length;
   const episodes = recs.reduce((s, r) => s + r.episodes, 0);
+
+  // Гистограмма по тяжести превышения (макс. excess на ТС).
+  const hist = useMemo(() => {
+    const b = { mid: 0, high: 0, gross: 0 };
+    for (const r of recs) {
+      const e = r.max_excess || 0;
+      if (e >= 40) b.gross++;
+      else if (e >= 20) b.high++;
+      else if (e >= 6) b.mid++;
+    }
+    return [
+      { label: "6–20", value: b.mid, tone: "warn" as const },
+      { label: "20–40", value: b.high, tone: "danger" as const },
+      { label: "40+", value: b.gross, tone: "danger" as const },
+    ];
+  }, [recs]);
 
   if (!recs.length)
     return (
@@ -21,9 +49,12 @@ export default function Recommendations({ recs }: { recs: Recommendation[] }) {
       </p>
     );
 
+  const shown = showAll ? recs.slice(0, 60) : recs.slice(0, DEFAULT_SHOWN);
+
   return (
     <div>
-      <div className="mb-6 grid grid-cols-3 gap-x-10">
+      {/* сводка */}
+      <div className="mb-8 grid grid-cols-3 gap-x-10">
         <div className="border-t border-line py-3">
           <span className="eyebrow">ТС с превышениями</span>
           <p className="data text-2xl text-ink">{num(recs.length)}</p>
@@ -38,8 +69,24 @@ export default function Recommendations({ recs }: { recs: Recommendation[] }) {
         </div>
       </div>
 
-      <ul>
-        {recs.slice(0, 40).map((r) => {
+      {/* графики: распределение по тяжести + топ-ДЗО по эпизодам */}
+      <div className="mb-10 grid gap-10 lg:grid-cols-2">
+        <div>
+          <span className="eyebrow">Распределение по превышению, км/ч · ТС</span>
+          <div className="mt-3"><ColumnChart bars={hist} /></div>
+        </div>
+        {topOrgs.length > 0 && (
+          <div>
+            <span className="eyebrow">Топ организаций по эпизодам</span>
+            <div className="mt-4"><RankBars items={topOrgs} tone="warn" /></div>
+          </div>
+        )}
+      </div>
+
+      {/* список нарушителей — свёрнут по умолчанию */}
+      <span className="eyebrow">Нарушители</span>
+      <ul className="mt-2">
+        {shown.map((r) => {
           const isOpen = open === r.terminal_id;
           return (
             <li key={r.terminal_id} className="border-t border-line">
@@ -76,10 +123,15 @@ export default function Recommendations({ recs }: { recs: Recommendation[] }) {
           );
         })}
       </ul>
-      {recs.length > 40 && (
-        <p className="data mt-4 text-xs text-ink-faint">
-          показаны 40 из {recs.length} — отсортированы по тяжести
-        </p>
+      {recs.length > DEFAULT_SHOWN && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="eyebrow mt-4 text-accent transition-colors hover:text-ink"
+        >
+          {showAll
+            ? "← свернуть"
+            : `${t("common.show")} ещё ${num(Math.min(60, recs.length) - DEFAULT_SHOWN)} →`}
+        </button>
       )}
     </div>
   );

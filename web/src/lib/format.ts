@@ -8,13 +8,16 @@ export const num = (v: number, frac = 0) =>
     maximumFractionDigits: frac,
   }).format(v ?? 0);
 
-export const money = (v: number) => `${nf.format(Math.round(v ?? 0))} ₸`;
+// NBSP ( ) между числом, разрядом и ₸ — чтобы «14,1 млн ₸» не рвалось
+// переносом на узких плитках (баг «14,1 млн ↵ ₸»).
+const NB = "\u00A0";
+export const money = (v: number) => `${nf.format(Math.round(v ?? 0))}${NB}₸`;
 
 export function moneyShort(v: number): string {
   v = v ?? 0;
-  if (Math.abs(v) >= 1_000_000) return `${num(v / 1_000_000, 1)} млн ₸`;
-  if (Math.abs(v) >= 1_000) return `${num(v / 1_000, 0)} тыс ₸`;
-  return `${num(v, 0)} ₸`;
+  if (Math.abs(v) >= 1_000_000) return `${num(v / 1_000_000, 1)}${NB}млн${NB}₸`;
+  if (Math.abs(v) >= 1_000) return `${num(v / 1_000, 0)}${NB}тыс${NB}₸`;
+  return `${num(v, 0)}${NB}₸`;
 }
 
 export const pct = (v: number, frac = 0) => `${num((v ?? 0) * 100, frac)}%`;

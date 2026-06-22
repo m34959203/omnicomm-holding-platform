@@ -20,8 +20,8 @@ function Card({
       onClick={onOpen}
       className="group flex flex-col gap-2 bg-surface p-5 text-left transition-colors hover:bg-surface-2"
     >
-      <span className="eyebrow">{eyebrow}</span>
-      <span className={`display text-3xl ${valueColor}`}>{value}</span>
+      <span className="eyebrow flex min-h-[2.2em] items-start leading-tight">{eyebrow}</span>
+      <span className={`display whitespace-nowrap text-3xl ${valueColor}`}>{value}</span>
       <span className="data text-xs text-ink-faint">{sub}</span>
       <span className="eyebrow mt-2 text-ink-dim transition-colors group-hover:text-accent">
         {openLabel}

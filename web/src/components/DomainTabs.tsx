@@ -15,7 +15,7 @@ import GeozoneMap from "./GeozoneMap";
 // только когда её таб активен (Яндекс тяжёлый). EconomicsPanel/GeozoneMap —
 // холдингового уровня (клиентски не скоупятся) → бейдж при выбранном scope.
 export default function DomainTabs({
-  tab, onTab, eco, recs, sensor, maint, geos, scoped,
+  tab, onTab, eco, recs, sensor, maint, geos, scoped, speedByOrg = [],
 }: {
   tab: TabKey;
   onTab: (t: TabKey) => void;
@@ -25,6 +25,7 @@ export default function DomainTabs({
   maint: Maintenance | null;
   geos: GeoFeature[];
   scoped: boolean;
+  speedByOrg?: { label: string; value: number }[];
 }) {
   const { t } = useLang();
 
@@ -57,7 +58,7 @@ export default function DomainTabs({
             </>
           ) : <Empty t={t} />
         )}
-        {tab === "speed" && <Recommendations recs={recs} />}
+        {tab === "speed" && <Recommendations recs={recs} topOrgs={speedByOrg} />}
         {tab === "quality" && (sensor ? <SensorHealthPanel sh={sensor} /> : <Empty t={t} />)}
         {tab === "maint" && (maint ? <MaintenancePanel mt={maint} /> : <Empty t={t} />)}
         {tab === "map" && (
