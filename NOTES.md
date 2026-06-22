@@ -380,3 +380,13 @@ Live на копии КАП: 1998 ТС → 765🟢/608🟡/625🔴 (офлайн
 только по подозреваемым. +4 теста, **весь набор 201 зелёный**. Live на копии КАП: триаж 735🟢/634🟡/629🔴,
 get_journal по свежему ТС (бортсеть 25.2В, ДУТ слот {1}), diagnose при baseline {1,2} → «сбой слота 2
 при живом питании». Цикл Sensor Health v2 (терминал → возможности → точечный Журнал → gate по бортсети) собран.
+
+## Чек-поинт 2026-06-22 (11) — персистентность baseline здоровья датчиков
+
+`store.sensor_baseline` (SQLite-таблица, UPSERT по terminal_id; capabilities+dut_slots CSV+updated_at)
++ `save_sensor_baseline`/`load_sensor_baseline`. В `sensor_health`: `SensorBaseline` dataclass,
+`make_baselines` (из снимка возможностей + слотов ДУТ), адаптеры `to_capability_baseline`/`to_dut_baseline`
+для `select_suspects`/`investigate`. Теперь триаж сравнивает текущий снимок с ИСТОРИЕЙ (накопленный
+«здоровый» baseline), а не с разовым. +4 теста, **весь набор 205 зелёный**. Цикл Sensor Health собран
+полностью: снимок→baseline в БД→триаж vs история→точечный Журнал→диагноз с gate по бортсети.
+Следующее по логике — вывод светофора/диагнозов на портал ДЗО (вентиль доверия к KPI) + плановый сбор baseline.

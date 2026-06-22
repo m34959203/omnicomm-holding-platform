@@ -34,6 +34,13 @@ CREATE TABLE IF NOT EXISTS vehicle_org (
     org_id     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_vehicle_org_org ON vehicle_org(org_id);
+
+CREATE TABLE IF NOT EXISTS sensor_baseline (
+    terminal_id  TEXT PRIMARY KEY,
+    capabilities TEXT NOT NULL,   -- CSV значений Capability (gps,engine,fuel,can,aux)
+    dut_slots    TEXT NOT NULL,   -- CSV слотов ДУТ (1..6)
+    updated_at   INTEGER          -- epoch сек снимка baseline
+);
 """
 
 
@@ -99,3 +106,59 @@ def load_org_registry(path: str) -> Optional[OrgRegistry]:
     )
     vehicle_org = {str(r[0]): str(r[1]) for r in veh_rows}
     return OrgRegistry(tree=tree, vehicle_org=vehicle_org)
+
+
+# --- Baseline здоровья датчиков (Sensor Health) ------------------------------
+
+def _csv(values) -> str:
+    return ",".join(str(v) for v in sorted(values))
+
+
+def save_sensor_baseline(baselines: dict, path: str) -> str:
+    """UPSERT baseline здоровья по ТС (накапливается, не полная замена).
+
+    `baselines`: {terminal_id -> sensor_health.SensorBaseline}. Возможности/слоты
+    сериализуются в CSV. Повторный снимок по ТС перезаписывает прежний.
+    """
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    conn = _connect(path)
+    try:
+        conn.executescript(SCHEMA)
+        conn.executemany(
+            "INSERT INTO sensor_baseline(terminal_id, capabilities, dut_slots, "
+            "updated_at) VALUES (?,?,?,?) "
+            "ON CONFLICT(terminal_id) DO UPDATE SET "
+            "capabilities=excluded.capabilities, dut_slots=excluded.dut_slots, "
+            "updated_at=excluded.updated_at",
+            [(str(b.terminal_id), _csv(c.value for c in b.capabilities),
+              _csv(b.dut_slots), b.updated_at) for b in baselines.values()],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return path
+
+
+def load_sensor_baseline(path: str) -> dict:
+    """Прочитать baseline здоровья: {terminal_id -> SensorBaseline}. {} — нет данных."""
+    if not os.path.exists(path):
+        return {}
+    from .sensor_health import Capability, SensorBaseline
+    conn = _connect(path)
+    try:
+        try:
+            rows = conn.execute("SELECT terminal_id, capabilities, dut_slots, "
+                                "updated_at FROM sensor_baseline").fetchall()
+        except sqlite3.OperationalError:
+            return {}
+    finally:
+        conn.close()
+    out: dict = {}
+    for tid, caps, slots, upd in rows:
+        out[str(tid)] = SensorBaseline(
+            terminal_id=str(tid),
+            capabilities={Capability(c) for c in caps.split(",") if c},
+            dut_slots={int(s) for s in slots.split(",") if s},
+            updated_at=upd,
+        )
+    return out

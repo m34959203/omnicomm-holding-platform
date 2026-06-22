@@ -109,3 +109,61 @@ def test_holding_build_registry_to_sqlite(tmp_path):
     reloaded = org.load_org_registry(db)
     assert reloaded.vehicle_org == reg.vehicle_org
     assert reloaded.tree.get("contr-a").type == OrgType.CONTRACTOR
+
+
+# --- Sensor Health baseline ---------------------------------------------------
+
+def test_sensor_baseline_roundtrip(tmp_path):
+    from omnicomm_report import sensor_health as sh
+    from omnicomm_report.sensor_health import Capability
+    db = str(tmp_path / "reg.db")
+    caps = {
+        "7": sh.CapabilityPresence("7", {Capability.GPS, Capability.FUEL}),
+        "8": sh.CapabilityPresence("8", {Capability.GPS}),
+    }
+    baselines = sh.make_baselines(caps, dut_by_terminal={"7": {1, 2}}, now=1782000000)
+    store.save_sensor_baseline(baselines, db)
+
+    loaded = store.load_sensor_baseline(db)
+    assert set(loaded) == {"7", "8"}
+    assert loaded["7"].capabilities == {Capability.GPS, Capability.FUEL}
+    assert loaded["7"].dut_slots == {1, 2}
+    assert loaded["7"].updated_at == 1782000000
+    assert loaded["8"].dut_slots == set()
+
+
+def test_sensor_baseline_upsert_overwrites(tmp_path):
+    from omnicomm_report import sensor_health as sh
+    from omnicomm_report.sensor_health import Capability, SensorBaseline
+    db = str(tmp_path / "reg.db")
+    store.save_sensor_baseline(
+        {"7": SensorBaseline("7", {Capability.FUEL}, {1}, 100)}, db)
+    # повторный снимок по тому же ТС перезаписывает
+    store.save_sensor_baseline(
+        {"7": SensorBaseline("7", {Capability.GPS}, {1, 2}, 200)}, db)
+    loaded = store.load_sensor_baseline(db)
+    assert loaded["7"].capabilities == {Capability.GPS}
+    assert loaded["7"].dut_slots == {1, 2}
+    assert loaded["7"].updated_at == 200
+
+
+def test_sensor_baseline_missing_file_returns_empty(tmp_path):
+    assert store.load_sensor_baseline(str(tmp_path / "nope.db")) == {}
+
+
+def test_baseline_adapters_feed_select_suspects(tmp_path):
+    from omnicomm_report import sensor_health as sh
+    from omnicomm_report.sensor_health import Capability, TerminalStatus
+    db = str(tmp_path / "reg.db")
+    caps = {"7": sh.CapabilityPresence("7", {Capability.GPS, Capability.FUEL})}
+    store.save_sensor_baseline(sh.make_baselines(caps, {"7": {1}}), db)
+    baselines = store.load_sensor_baseline(db)
+
+    # текущий снимок: ТС жив, но топливо пропало → подозреваемый
+    fleet = sh.FleetSensorHealth(
+        terminals=[sh.TerminalHealth("7", TerminalStatus.ONLINE, 1, 0)],
+        capabilities={"7": sh.CapabilityPresence("7", {Capability.GPS})},
+    )
+    cap_base = sh.to_capability_baseline(baselines)
+    assert sh.select_suspects(fleet, cap_base, focus=Capability.FUEL) == ["7"]
+    assert sh.to_dut_baseline(baselines) == {"7": {1}}

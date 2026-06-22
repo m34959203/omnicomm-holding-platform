@@ -66,6 +66,7 @@ Omnicomm Online (копия КАП, REST API)
 - **Уровень 1 (терминал):** «светофор» ONLINE/STALE/OFFLINE по `activity/vehicles` (`dateID`) + `receive_data`. ✅
 - **Грубая дата-валидация:** наличие возможностей (GPS/двигатель/ДУТ/CAN/доп.входы) по блокам `consolidatedReport` + детекция «потухло vs baseline» → исключение из KPI. ✅
 - **Уровень 2 (сенсор по адресу + напряжение бортсети):** ✅ через **«Журнал»** (`POST /ls/api/v1/click/log`): `LLS_ID/LLS_CODE_PRESENT` (статус ДУТ по слоту) + `U_BOARD` (gate «питание есть + ДУТ молчит = сбой»). `get_journal()` + `journal_health()`/`diagnose_dut_failure()`. Звать **точечно** по ТС-подозреваемым (триаж уровнем 1). Серийник датчика — вручную (`LLS_ID` = слот, не серийник).
+- **Оркестрация + baseline:** `select_suspects` (терминал жив + возможность пропала vs baseline) → `investigate` (точечный `journal_fetch`) → `diagnose_suspect`. Baseline здоровья (возможности + слоты ДУТ per-ТС) персистится в `store.sensor_baseline` (SQLite, upsert) — триаж сравнивает с историей, не с разовым снимком.
 
 ## 4. Доступ (row-level, две роли)
 

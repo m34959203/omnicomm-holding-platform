@@ -410,6 +410,44 @@ def investigate(fleet: "FleetSensorHealth",
     return out
 
 
+# --- Baseline здоровья (для персистентности в store.py) ----------------------
+# «Здоровый» снимок по ТС: какие возможности и слоты ДУТ нормально передаются.
+# Триаж сравнивает текущий снимок с этим baseline (историей), а не с разовым.
+
+@dataclass
+class SensorBaseline:
+    terminal_id: str
+    capabilities: set[Capability] = field(default_factory=set)
+    dut_slots: set[int] = field(default_factory=set)
+    updated_at: Optional[int] = None        # epoch сек снимка baseline
+
+
+def make_baselines(capabilities: dict[str, CapabilityPresence],
+                   dut_by_terminal: Optional[dict[str, set[int]]] = None,
+                   now: Optional[int] = None) -> dict[str, SensorBaseline]:
+    """Собрать baseline по ТС из «здорового» снимка: возможности (обязательно) +
+    слоты ДУТ (опц., из `learn_dut_baseline` по «Журналу»).
+    """
+    dut = dut_by_terminal or {}
+    out: dict[str, SensorBaseline] = {}
+    for tid, cp in capabilities.items():
+        out[tid] = SensorBaseline(terminal_id=tid, capabilities=set(cp.present),
+                                  dut_slots=set(dut.get(tid, set())), updated_at=now)
+    return out
+
+
+def to_capability_baseline(baselines: dict[str, SensorBaseline]
+                           ) -> dict[str, CapabilityPresence]:
+    """Адаптер: SensorBaseline → формат для `select_suspects`/`detect_gaps`."""
+    return {tid: CapabilityPresence(tid, set(b.capabilities))
+            for tid, b in baselines.items()}
+
+
+def to_dut_baseline(baselines: dict[str, SensorBaseline]) -> dict[str, set[int]]:
+    """Адаптер: SensorBaseline → формат слотов ДУТ для `investigate`."""
+    return {tid: set(b.dut_slots) for tid, b in baselines.items()}
+
+
 # --- Сводка ------------------------------------------------------------------
 
 @dataclass
