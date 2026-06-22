@@ -32,8 +32,8 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from omnicomm_report import (  # noqa: E402
-    ai_engine, auth, config, dashboard, demo_data, economics, geozones, holding,
-    org as org_mod, recommendations, rollup, speeding)
+    ai_engine, auth, config, dashboard, demo_data, economics, geomap, geozones,
+    holding, org as org_mod, recommendations, rollup, speeding)
 from omnicomm_report.config import Settings, load_env_file  # noqa: E402
 from omnicomm_report.models import ReportPeriod  # noqa: E402
 from omnicomm_report.org import DEFAULT_ORG_REGISTRY, OrgLevel  # noqa: E402
@@ -197,6 +197,20 @@ def _load_violations(demo: bool, start_ts: int, end_ts: int, _vehicle_org: dict)
         return speeding.detect_from_visits(visits, seed=seed)
     except Exception:  # noqa: BLE001 — детекция не должна валить дашборд
         return {}
+
+
+@st.cache_data(show_spinner=False)
+def _load_geozones(demo: bool) -> list:
+    """Сырые геозоны Omnicomm (с геометрией) для карты. Демо: пусто (карта live-only)."""
+    if demo:
+        return []
+    try:
+        from omnicomm_report.api_client import OmnicommClient
+        client = OmnicommClient(Settings.from_env())
+        client.login()
+        return client.list_geozones()
+    except Exception:  # noqa: BLE001 — карта не должна валить дашборд
+        return []
 
 
 with st.spinner("Сборка дашборда…" if DEMO_MODE else "Запрос данных из Omnicomm…"):
@@ -384,6 +398,17 @@ def _render_summary(node):
             st.caption(f"…и ещё {len(recs) - 3} ТС — в разделе ниже.")
     else:
         st.caption("Устойчивых превышений по геозонам СТ КАП за период не выявлено.")
+
+    # Карта геозон СТ КАП (полигоны площадок + трассы с лимитами)
+    _raw_geozones = _load_geozones(DEMO_MODE)
+    _feats = geomap.geozone_features(_raw_geozones)
+    if _feats:
+        with st.expander(f"🗺️ Карта геозон СТ КАП ({len(_feats)})"):
+            st.caption("Площадки (заливка) и трассы (буфер) с лимитами скорости — "
+                       "цвета и геометрия из Omnicomm. Наведите курсор для названия и лимита.")
+            st.pydeck_chart(geomap.build_deck(_raw_geozones), width="stretch")
+    elif DEMO_MODE:
+        st.caption("🗺️ Карта геозон доступна на боевом контуре (в демо геометрии нет).")
 
     # --- Детали (свёрнуто) ---
     st.divider()
