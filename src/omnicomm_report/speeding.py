@@ -142,6 +142,52 @@ def detect_speeding(track, limit_fn: LimitFn, *, terminal_id: str = "") -> list[
     return violations
 
 
+def detect_from_visits(visits, *, seed: Optional[dict] = None,
+                       category_fn=None) -> dict:
+    """Детекция превышений по ВИЗИТАМ геозон (`geozones_report`) — без геометрии.
+
+    Каждый визит несёт `geozoneName` (с лимитом в имени), `mv.maxSpeed`,
+    `mv.mileageSpeeding`, `geoInfo`. Лимит → `geozone_limit(имя, категория, seed)`;
+    нарушение, если `maxSpeed > лимит` И ТС реально двигался в зоне (mileage>0,
+    отсекаем стационарные GPS-выбросы — дух R-INV-3). Тип дороги → гейт КоАП (R-INV-1).
+
+    Возвращает {terminal_id -> [Violation]}.
+    """
+    from . import geozones as gz
+    cat_fn = category_fn or gz.categorize_vehicle
+    out: dict = {}
+    for v in visits or []:
+        if not isinstance(v, dict):
+            continue
+        name = v.get("geozoneName") or ""
+        mv = v.get("mv") or {}
+        max_speed = mv.get("maxSpeed")
+        if not name or max_speed is None or max_speed <= 0:
+            continue
+        if (mv.get("mileage") or 0) <= 0:        # не двигался в зоне → пропуск выброса
+            continue
+        tid = v.get("vehicleId") or v.get("id")
+        if tid is None:
+            continue
+        named = gz.seed_limit(seed, name) if seed else None
+        gl = gz.geozone_limit(name, cat_fn(v.get("vehicleName", "")), named)
+        if max_speed <= gl.limit:
+            continue
+        excess = round(float(max_speed) - gl.limit, 1)
+        geo = v.get("geoInfo") or {}
+        article, fine = (koap_for(excess) if gl.public_road else (None, None))
+        out.setdefault(str(tid), []).append(Violation(
+            terminal_id=str(tid), geozone=name, limit=gl.limit,
+            max_speed=float(max_speed), excess=excess,
+            duration_s=int(geo.get("duration") or 0),
+            start_ts=int(geo.get("startDate") or 0),
+            points=int(mv.get("mileageSpeeding") or 0),   # км с превышением (Omnicomm)
+            public_road=gl.public_road, st_kap_severity=st_kap_severity(excess),
+            koap_article=article, fine_kzt=fine,
+        ))
+    return out
+
+
 def triage_speeding_suspects(consolidated_rows, min_zone_limit: int = 20) -> list[str]:
     """Дешёвый триаж (R-инвариант масштаба): по суточному `mv.maxSpeed` отобрать ТС,
     у кого вообще есть смысл тянуть трек (max за сутки выше минимального лимита зон).

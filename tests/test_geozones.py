@@ -89,3 +89,14 @@ def test_geozone_limit_named_not_lowered_by_matrix():
     # официальные 80 на «Технологическая дорога» Семизбай (zone4) НЕ занижаются до 20
     r = gz.geozone_limit("Технологическая дорога", VC.TRUCK_SPECIAL, named_limit=80)
     assert r.limit == 80 and r.source == "named"
+
+
+# --- seed из выгрузки Omnicomm ------------------------------------------------
+
+def test_build_seed_and_lookup():
+    raw = [{"name": "н.п. Кыземшек 50 км/ч (АО НАК Казатомпром)"},
+           {"name": "Полигон Север"}]            # без лимита
+    seed = gz.build_seed(raw)
+    assert gz.seed_limit(seed, "Н.П. КЫЗЕМШЕК 50 КМ/Ч (АО НАК Казатомпром)") == 50  # регистр-независимо
+    assert gz.seed_limit(seed, "Полигон Север") is None
+    assert gz.seed_limit(seed, "неизвестная") is None

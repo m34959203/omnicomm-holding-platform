@@ -71,3 +71,37 @@ def test_triage_by_maxspeed():
         {"consolidatedReport": {"vehicleId": 3, "mv": {"maxSpeed": None}}}, # нет данных
     ]
     assert sp.triage_speeding_suspects(rows, min_zone_limit=20) == ["1"]
+
+
+# --- детекция по визитам геозон (без геометрии) ------------------------------
+
+def _visit(name, vid, max_speed, mileage=5.0, mileage_speeding=2, duration=3600,
+           vname="КамАЗ"):
+    return {"vehicleId": vid, "vehicleName": vname, "geozoneName": name,
+            "geoInfo": {"startDate": 1000, "duration": duration},
+            "mv": {"maxSpeed": max_speed, "mileage": mileage,
+                   "mileageSpeeding": mileage_speeding}}
+
+
+def test_detect_from_visits_public_and_tech():
+    visits = [
+        _visit("Трасса Каратау 60 км/ч", 1, 85),          # public, лимит 60 → excess 25
+        _visit("Тех дорога Инкудук 30 км/ч", 1, 50),      # техдорога, лимит 30 → excess 20
+        _visit("н.п. Тараз 60 км/ч", 2, 55),              # не превышение (55<60)
+        _visit("Полигон 40 км/ч", 2, 70, mileage=0),      # стоял (mileage 0) → пропуск
+    ]
+    out = sp.detect_from_visits(visits)
+    assert set(out) == {"1"}                              # только ТС 1 нарушил
+    vs = {v.geozone: v for v in out["1"]}
+    pub = vs["Трасса Каратау 60 км/ч"]
+    assert pub.excess == 25.0 and pub.public_road is True and pub.koap_article == "ст.592 ч.2"
+    tech = vs["Тех дорога Инкудук 30 км/ч"]
+    assert tech.excess == 20.0 and tech.public_road is False and tech.koap_article is None
+
+
+def test_detect_from_visits_uses_seed_when_name_has_no_limit():
+    from omnicomm_report import geozones as gz
+    seed = gz.build_seed([{"name": "Полигон Север"}])     # без «км/ч» → None в seed
+    # имя без лимита → фолбэк-матрица (Полигон=зона4, truck=20); maxSpeed 35 → excess 15
+    out = sp.detect_from_visits([_visit("Полигон Север", 1, 35)], seed=seed)
+    assert out["1"][0].excess == 15.0 and out["1"][0].public_road is False

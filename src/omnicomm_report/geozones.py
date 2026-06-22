@@ -143,6 +143,31 @@ def normalize_seed_limit(raw) -> Optional[int]:
 
 # --- Основной резолвер --------------------------------------------------------
 
+def build_seed(raw_geozones) -> dict:
+    """Seed-справочник из выгрузки Omnicomm (`list_geozones`): {имя → лимит}.
+
+    Лимит берём из имени геозоны («… 50 км/ч»). Имена без явного лимита → None
+    (на них сработает фолбэк-матрица в `geozone_limit`). Нормализация имени —
+    `_norm`, чтобы матчить визиты к справочнику устойчиво к регистру/пробелам.
+    """
+    seed: dict = {}
+    for g in raw_geozones or []:
+        name = (g.get("name") if isinstance(g, dict) else None) or ""
+        if name:
+            seed[_norm(name)] = parse_limit_from_name(name)
+    return seed
+
+
+def _norm(name: str) -> str:
+    """Нормализация имени геозоны для матчинга (регистр, пробелы)."""
+    return " ".join((name or "").lower().split())
+
+
+def seed_limit(seed: dict, geozone: str) -> Optional[int]:
+    """Лимит из seed по имени геозоны (нормализованный матч)."""
+    return seed.get(_norm(geozone)) if seed else None
+
+
 def geozone_limit(geozone: str, category: VehicleCategory,
                   named_limit: Optional[int] = None) -> GeozoneLimit:
     """Итоговый лимит для (геозона, категория ТС).
