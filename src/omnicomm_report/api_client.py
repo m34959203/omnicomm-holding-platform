@@ -443,6 +443,15 @@ class OmnicommClient:
         """Каталог отчётов: GET /ls/api/v1/reports/ (id/code/group/objectTypes)."""
         return _as_list(self._request("GET", "reports_catalog"))
 
+    def get_activity(self) -> list[dict]:
+        """Активность терминалов: GET /ls/api/v1/activity/vehicles.
+
+        Возвращает по терминалу время последних данных: [{id, dateID(ms), uuid}].
+        Это «светофор» давности (Sensor Health, путь C). Фильтр по vehicleIds
+        контур игнорирует — отдаёт весь доступный список.
+        """
+        return _as_list(self._request("GET", "activity_vehicles"))
+
     def list_geozones(self) -> list[dict]:
         """Геозоны клиента: GET /api/service/geozones/geozones (rows[])."""
         data = self._request("GET", "geozones_list")

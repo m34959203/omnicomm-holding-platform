@@ -202,6 +202,14 @@ REPORT_CONSOLIDATED_ID = 32     # consolidatedreport (FAS, FTC)
 REPORT_FUEL_EVENTS_ID = 8       # fueleventsreport
 
 
+# --- Sensor Health, путь C (docs/knowledge-base/10) ---------------------------
+# Терминальный «светофор» по давности данных (activity/vehicles → dateID).
+# Сенсор-уровень (адрес узла, напряжение бортсети) через REST недоступен —
+# здесь только то, что реально отдаёт API: давность терминала + наличие блоков.
+TERMINAL_STALE_AFTER_MIN = 60        # данных нет > часа → STALE (🟡)
+TERMINAL_OFFLINE_AFTER_HOURS = 24    # данных нет > суток → OFFLINE (🔴)
+
+
 @dataclass
 class Settings:
     """Среда выполнения. Загружается из ENV: LOGIN, PASSWORD, SERVICE."""
