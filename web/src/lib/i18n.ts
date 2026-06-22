@@ -69,6 +69,36 @@ const DICT: Record<string, { ru: string; kk: string }> = {
   "mt.left": { ru: "Осталось", kk: "Қалды" },
   "mt.mh": { ru: "моточас", kk: "моторсағ" },
   "mt.km": { ru: "км", kk: "км" },
+  // Scope / навигация
+  "scope.holding": { ru: "Весь холдинг", kk: "Бүкіл холдинг" },
+  "scope.search": { ru: "Найти ДЗО / подрядчика…", kk: "ЕТҰ / мердігерді табу…" },
+  "scope.units": { ru: "узлов", kk: "түйін" },
+  "scope.vehicles": { ru: "ТС", kk: "КҚ" },
+  "scope.title": { ru: "Организация", kk: "Ұйым" },
+  // Health-полоса
+  "health.title": { ru: "Здоровье холдинга", kk: "Холдинг денсаулығы" },
+  "health.online": { ru: "Терминалы на связи", kk: "Байланыстағы терминалдар" },
+  "health.savings": { ru: "Потенциал экономии", kk: "Үнемдеу әлеуеті" },
+  "health.losses": { ru: "Топливо на простое", kk: "Бос жүрістегі отын" },
+  "health.speeding": { ru: "ТС с превышениями", kk: "Асулары бар КҚ" },
+  "health.overdue": { ru: "Просрочено ТО", kk: "Мерзімі өткен ТҚ" },
+  "health.idle": { ru: "Холостой ход", kk: "Бос жүріс" },
+  "health.year": { ru: "в год", kk: "жылына" },
+  // Лента внимания
+  "attn.title": { ru: "Что требует внимания", kk: "Назар талап ететіні" },
+  "attn.none": { ru: "Срочных сигналов нет", kk: "Шұғыл сигналдар жоқ" },
+  "attn.more": { ru: "ещё сигналов", kk: "тағы сигнал" },
+  // Overview
+  "ov.title": { ru: "Обзор по доменам", kk: "Домендер бойынша шолу" },
+  "ov.open": { ru: "Открыть →", kk: "Ашу →" },
+  // Табы
+  "tab.money": { ru: "Деньги", kk: "Ақша" },
+  "tab.speed": { ru: "Скоростной режим", kk: "Жылдамдық" },
+  "tab.map": { ru: "Геозоны", kk: "Геозоналар" },
+  "tab.quality": { ru: "Качество данных", kk: "Деректер сапасы" },
+  "tab.maint": { ru: "Контроль ТО", kk: "ТҚ бақылауы" },
+  "common.show": { ru: "Показать", kk: "Көрсету" },
+  "common.holdingOnly": { ru: "по всему холдингу", kk: "бүкіл холдинг бойынша" },
 };
 
 export function translate(lang: Lang, key: string): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard,
   GeoFeature,
@@ -16,29 +16,17 @@ import {
 } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import {
+  TABS, TabKey, buildSignals, indexOrgs, makeInScope, scopeMaint,
+  scopeRecs, scopeSensor, subtreeOrgIds,
+} from "@/lib/scope";
 import SyncBar from "@/components/SyncBar";
-import OrgExplorer from "@/components/OrgExplorer";
-import EconomicsPanel from "@/components/EconomicsPanel";
-import GeozoneMap from "@/components/GeozoneMap";
-import Recommendations from "@/components/Recommendations";
-import SensorHealthPanel from "@/components/SensorHealthPanel";
-import MaintenancePanel from "@/components/MaintenancePanel";
 import Toolbar from "@/components/Toolbar";
-
-function Section({ no, title, kicker, children, delay = 0 }: {
-  no: string; title: string; kicker?: string; children: React.ReactNode; delay?: number;
-}) {
-  return (
-    <section className="rise border-t border-line-strong pt-8" style={{ animationDelay: `${delay}ms` }}>
-      <header className="mb-8 flex flex-wrap items-baseline gap-4">
-        <span className="numeral">{no}</span>
-        <h2 className="display text-2xl sm:text-3xl">{title}</h2>
-        {kicker && <span className="data w-full text-xs text-ink-faint sm:ml-auto sm:w-auto">{kicker}</span>}
-      </header>
-      {children}
-    </section>
-  );
-}
+import ScopeRail from "@/components/ScopeRail";
+import HealthStrip from "@/components/HealthStrip";
+import AttentionFeed from "@/components/AttentionFeed";
+import Overview from "@/components/Overview";
+import DomainTabs from "@/components/DomainTabs";
 
 export default function Page() {
   const { t } = useLang();
@@ -47,15 +35,17 @@ export default function Page() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [sensor, setSensor] = useState<SensorHealth | null>(null);
   const [maint, setMaint] = useState<Maintenance | null>(null);
+  const [vehicleOrg, setVehicleOrg] = useState<Record<string, string>>({});
   const [state, setState] = useState<"loading" | "ready" | "empty" | "down">("loading");
+
+  const [scope, setScope] = useState<string>("");
+  const [tab, setTab] = useState<TabKey>("money");
+  const [drawer, setDrawer] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const snaps = await getSnapshots();
-      if (!snaps.length) {
-        setState("empty");
-        return;
-      }
+      if (!snaps.length) { setState("empty"); return; }
       const d = await getDashboard();
       const [g, r, sh, mt] = await Promise.all([
         getGeozones(), getRecommendations(), getSensorHealth(), getMaintenance(),
@@ -63,6 +53,7 @@ export default function Page() {
       setDash(d);
       setGeos(g.geozones ?? []);
       setRecs(r.recommendations ?? []);
+      setVehicleOrg(r.vehicle_org ?? {});
       setSensor(sh.sensor_health ?? null);
       setMaint(mt.maintenance ?? null);
       setState("ready");
@@ -73,86 +64,150 @@ export default function Page() {
 
   useEffect(() => { load(); }, [load]);
 
+  // deep-link: читать ?tab/?scope при маунте, писать при изменении (без перезагрузки).
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const tk = p.get("tab");
+    if (tk && (TABS as readonly string[]).includes(tk)) setTab(tk as TabKey);
+    const sc = p.get("scope");
+    if (sc) setScope(sc);
+  }, []);
+  useEffect(() => {
+    if (state !== "ready") return;
+    const p = new URLSearchParams(window.location.search);
+    p.set("tab", tab);
+    scope ? p.set("scope", scope) : p.delete("scope");
+    window.history.replaceState(null, "", `?${p.toString()}`);
+  }, [tab, scope, state]);
+
   const meta = dash?.meta ?? null;
+  const orgs = dash?.orgs ?? [];
+  const byId = useMemo(() => indexOrgs(orgs), [orgs]);
+  const root = orgs[0];
+  const node = (scope && byId.get(scope)) || root;
+  const scopeIds = useMemo(
+    () => (scope ? subtreeOrgIds(byId, scope) : null), [scope, byId],
+  );
+  const inScope = useMemo(() => makeInScope(scopeIds, vehicleOrg), [scopeIds, vehicleOrg]);
+
+  const recsS = useMemo(() => scopeRecs(recs, inScope), [recs, inScope]);
+  const sensorS = useMemo(() => scopeSensor(sensor, inScope), [sensor, inScope]);
+  const maintS = useMemo(() => scopeMaint(maint, inScope), [maint, inScope]);
+  const scoped = scope !== "";
+  const allSignals = useMemo(
+    () => buildSignals(recsS, sensorS, maintS, dash?.economics ?? null, scoped, 999),
+    [recsS, sensorS, maintS, dash, scoped],
+  );
+  const signals = allSignals.slice(0, 6);
+
+  const onScope = (id: string) => { setScope(id); setDrawer(false); };
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10 sm:px-10 lg:py-16">
-      {/* масткед */}
-      <header className="rise mb-10">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <span className="eyebrow">{t("mast.eyebrow")}</span>
-          <span className="eyebrow">{dash?.period?.label ?? "—"}</span>
-        </div>
-        <h1 className="display mt-3 text-5xl sm:text-7xl">
-          {t("mast.title_a")} <span className="text-accent">{t("mast.title_b")}</span>
-        </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-dim">
-          {t("mast.lead")}
-        </p>
-        <div className="mt-5">
-          <Toolbar periodKey={meta?.period_key} />
-        </div>
-      </header>
-
-      <div className="rise rule mb-6" style={{ animationDelay: "80ms" }} />
-      <div className="rise mb-14" style={{ animationDelay: "120ms" }}>
-        <SyncBar
-          syncedAt={meta?.synced_at ?? null}
-          periodLabel={dash?.period?.label ?? null}
-          onDone={load}
-        />
-      </div>
-
-      {state === "loading" && <Skeleton />}
-      {state === "down" && (
-        <Empty title="API недоступен"
-          body="Бэкенд-мост не отвечает. Запустите его: uvicorn api.main:app --port 8800" />
-      )}
-      {state === "empty" && (
-        <Empty title="Снимок ещё не собран"
-          body="Нажмите «Синхронизировать» вверху — синк соберёт снапшот в фоне и покажет живой прогресс." />
+    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-x-10 px-5 sm:px-8
+                    lg:grid-cols-[17rem_minmax(0,1fr)]">
+      {/* SCOPE RAIL — слева (десктоп), drawer (мобайл) */}
+      {state === "ready" && (
+        <>
+          <aside className="hidden lg:sticky lg:top-0 lg:block lg:max-h-dvh lg:overflow-y-auto
+                            lg:border-r lg:border-line lg:py-8 lg:pr-6">
+            <ScopeRail orgs={orgs} scope={scope} onScope={onScope} />
+          </aside>
+          {drawer && (
+            <div className="fixed inset-0 z-50 overflow-y-auto p-6 lg:hidden"
+              style={{ background: "var(--paper)" }}>
+              <button onClick={() => setDrawer(false)}
+                className="eyebrow mb-4 text-accent">← {t("scope.title")}</button>
+              <ScopeRail orgs={orgs} scope={scope} onScope={onScope} />
+            </div>
+          )}
+        </>
       )}
 
-      {state === "ready" && dash && (
-        <div className="flex flex-col gap-16">
-          <Section no="01" title={t("sec.hierarchy")}
-            kicker={dash.fleet ? `${num(dash.fleet.vehicles)} ${t("sec.hierarchy.kicker")} ${num(dash.fleet.with_data)}` : undefined}>
-            <OrgExplorer orgs={dash.orgs} />
-          </Section>
-
-          {dash.economics && (
-            <Section no="02" title={t("sec.money")} kicker={t("sec.money.kicker")} delay={60}>
-              <EconomicsPanel eco={dash.economics} />
-            </Section>
+      <main className="min-w-0 py-8 lg:py-12">
+        {/* КОМПАКТНЫЙ ХЕДЕР */}
+        <header className="rise">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <span className="eyebrow">{t("mast.eyebrow")} · КАП</span>
+            <span className="eyebrow">{dash?.period?.label ?? "—"}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+            <h1 className="display text-3xl sm:text-4xl">
+              {node ? node.name : <span className="text-accent">{t("scope.holding")}</span>}
+            </h1>
+            <Toolbar periodKey={meta?.period_key} />
+          </div>
+          {state === "ready" && node && (
+            <button
+              onClick={() => setDrawer(true)}
+              className="data mt-2 text-xs text-ink-faint lg:pointer-events-none"
+            >
+              {num(node.vehicle_count)} {t("scope.vehicles")}
+              {dash?.fleet ? ` · данные у ${num(dash.fleet.with_data)}` : ""}
+              <span className="lg:hidden"> · {t("scope.title")} ▾</span>
+            </button>
           )}
+        </header>
 
-          <Section no="03" title={t("sec.speeding")}
-            kicker={t("sec.speeding.kicker")} delay={120}>
-            <Recommendations recs={recs} />
-          </Section>
-
-          <Section no="04" title={t("sec.geozones")} kicker={t("sec.geozones.kicker")} delay={180}>
-            <GeozoneMap features={geos} />
-          </Section>
-
-          {sensor && (
-            <Section no="05" title={t("sec.sensor")} kicker={t("sec.sensor.kicker")} delay={240}>
-              <SensorHealthPanel sh={sensor} />
-            </Section>
-          )}
-
-          {maint && (
-            <Section no="06" title={t("sec.maint")} kicker={t("sec.maint.kicker")} delay={300}>
-              <MaintenancePanel mt={maint} />
-            </Section>
-          )}
+        <div className="rise rule my-5" style={{ animationDelay: "60ms" }} />
+        <div className="rise mb-10" style={{ animationDelay: "100ms" }}>
+          <SyncBar
+            syncedAt={meta?.synced_at ?? null}
+            periodLabel={dash?.period?.label ?? null}
+            onDone={load}
+          />
         </div>
-      )}
 
-      <footer className="rule mt-20 pt-6">
-        <p className="eyebrow">{t("footer")}</p>
-      </footer>
-    </main>
+        {state === "loading" && <Skeleton />}
+        {state === "down" && (
+          <Empty title="API недоступен"
+            body="Бэкенд-мост не отвечает. Запустите его: uvicorn api.main:app --port 8800" />
+        )}
+        {state === "empty" && (
+          <Empty title="Снимок ещё не собран"
+            body="Нажмите «Синхронизировать» вверху — синк соберёт снапшот в фоне." />
+        )}
+
+        {state === "ready" && node && (
+          <div className="flex flex-col gap-12">
+            <div className="rise"><HealthStrip
+              kpi={node.kpi}
+              vehicleCount={node.vehicle_count}
+              sensorCounts={sensorS?.counts ?? {}}
+              maintCounts={maintS?.counts ?? {}}
+              recsCount={recsS.length}
+            /></div>
+
+            <div className="rise" style={{ animationDelay: "60ms" }}>
+              <AttentionFeed signals={signals} total={allSignals.length} onJump={setTab} />
+            </div>
+
+            <div className="rise" style={{ animationDelay: "120ms" }}>
+              <Overview
+                kpi={node.kpi}
+                eco={scoped ? null : dash?.economics ?? null}
+                recsCount={recsS.length}
+                sensor={sensorS}
+                maint={maintS}
+                onOpen={setTab}
+              />
+            </div>
+
+            <div className="rise" style={{ animationDelay: "180ms" }}>
+              <DomainTabs
+                tab={tab} onTab={setTab}
+                eco={dash?.economics ?? null}
+                recs={recsS} sensor={sensorS} maint={maintS}
+                geos={geos} scoped={scoped}
+              />
+            </div>
+          </div>
+        )}
+
+        <footer className="rule mt-16 pt-6">
+          <p className="eyebrow">{t("footer")}</p>
+        </footer>
+      </main>
+    </div>
   );
 }
 
