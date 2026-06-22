@@ -41,6 +41,20 @@ CREATE TABLE IF NOT EXISTS sensor_baseline (
     dut_slots    TEXT NOT NULL,   -- CSV слотов ДУТ (1..6)
     updated_at   INTEGER          -- epoch сек снимка baseline
 );
+
+CREATE TABLE IF NOT EXISTS to_plan (
+    terminal_id     TEXT PRIMARY KEY,
+    interval_mh     REAL,
+    interval_km     REAL,
+    remind_before_mh REAL,
+    remind_before_km REAL
+);
+
+CREATE TABLE IF NOT EXISTS to_state (
+    terminal_id TEXT PRIMARY KEY,
+    t0          INTEGER,          -- начало текущего цикла наработки
+    last_to_at  INTEGER           -- когда подтверждено последнее ТО
+);
 """
 
 
@@ -162,3 +176,54 @@ def load_sensor_baseline(path: str) -> dict:
             updated_at=upd,
         )
     return out
+
+
+# --- Контроль ТО (планы + состояния) -----------------------------------------
+
+def save_maintenance(plans: dict, states: dict, path: str) -> str:
+    """UPSERT планы и состояния ТО. plans/states: {tid -> MaintenancePlan/State}."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    conn = _connect(path)
+    try:
+        conn.executescript(SCHEMA)
+        conn.executemany(
+            "INSERT INTO to_plan(terminal_id, interval_mh, interval_km, "
+            "remind_before_mh, remind_before_km) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(terminal_id) DO UPDATE SET interval_mh=excluded.interval_mh, "
+            "interval_km=excluded.interval_km, remind_before_mh=excluded.remind_before_mh, "
+            "remind_before_km=excluded.remind_before_km",
+            [(str(p.terminal_id), p.interval_mh, p.interval_km,
+              p.remind_before_mh, p.remind_before_km) for p in plans.values()],
+        )
+        conn.executemany(
+            "INSERT INTO to_state(terminal_id, t0, last_to_at) VALUES (?,?,?) "
+            "ON CONFLICT(terminal_id) DO UPDATE SET t0=excluded.t0, "
+            "last_to_at=excluded.last_to_at",
+            [(str(s.terminal_id), s.t0, s.last_to_at) for s in states.values()],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return path
+
+
+def load_maintenance(path: str) -> tuple:
+    """Прочитать планы и состояния ТО: (plans, states). ({},{}) — нет данных."""
+    if not os.path.exists(path):
+        return {}, {}
+    from .maintenance import MaintenancePlan, MaintenanceState
+    conn = _connect(path)
+    try:
+        try:
+            prows = conn.execute("SELECT terminal_id, interval_mh, interval_km, "
+                                 "remind_before_mh, remind_before_km FROM to_plan").fetchall()
+            srows = conn.execute("SELECT terminal_id, t0, last_to_at FROM to_state").fetchall()
+        except sqlite3.OperationalError:
+            return {}, {}
+    finally:
+        conn.close()
+    plans = {str(r[0]): MaintenancePlan(str(r[0]), r[1], r[2],
+             r[3] if r[3] is not None else 20.0,
+             r[4] if r[4] is not None else 500.0) for r in prows}
+    states = {str(r[0]): MaintenanceState(str(r[0]), r[1], r[2]) for r in srows}
+    return plans, states
