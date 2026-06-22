@@ -172,6 +172,57 @@ def test_journal_health_gps_and_supply_flags():
     assert jh.supply_broken is True
 
 
+# --- оркестрация: триаж → точечный Журнал -----------------------------------
+
+def test_select_suspects_only_alive_with_lost_capability():
+    fleet = sh.FleetSensorHealth(
+        terminals=[
+            sh.TerminalHealth("7", TerminalStatus.ONLINE, NOW, 0),
+            sh.TerminalHealth("8", TerminalStatus.OFFLINE, NOW - 99999, 99999),
+            sh.TerminalHealth("9", TerminalStatus.ONLINE, NOW, 0),
+        ],
+        capabilities={
+            "7": sh.CapabilityPresence("7", {Capability.GPS}),               # топливо пропало
+            "8": sh.CapabilityPresence("8", {Capability.GPS}),               # тоже, но OFFLINE
+            "9": sh.CapabilityPresence("9", {Capability.GPS, Capability.FUEL}),  # топливо есть
+        },
+    )
+    baseline = {
+        "7": sh.CapabilityPresence("7", {Capability.GPS, Capability.FUEL}),
+        "8": sh.CapabilityPresence("8", {Capability.GPS, Capability.FUEL}),
+        "9": sh.CapabilityPresence("9", {Capability.GPS, Capability.FUEL}),
+    }
+    # 7 — жив и потерял топливо → подозреваемый; 8 — офлайн (терминал, не датчик); 9 — норма
+    assert sh.select_suspects(fleet, baseline, focus=Capability.FUEL) == ["7"]
+
+
+def test_learn_dut_baseline():
+    assert sh.learn_dut_baseline([_packet()]) == {1}  # отдаёт только слот №1
+
+
+def test_investigate_drills_suspects_via_injected_fetch():
+    fleet = sh.FleetSensorHealth(
+        terminals=[sh.TerminalHealth("7", TerminalStatus.ONLINE, NOW, 0)],
+        capabilities={"7": sh.CapabilityPresence("7", {Capability.GPS})},
+    )
+    baseline = {"7": sh.CapabilityPresence("7", {Capability.GPS, Capability.FUEL})}
+    dut_baseline = {"7": {1, 2}}  # раньше отдавали слоты 1 и 2
+    # в «Журнале» сейчас отдаёт только слот 1, питание есть → слот 2 = сбой
+    diags = sh.investigate(fleet, baseline, dut_baseline,
+                           journal_fetch=lambda tid: [_packet()])
+    assert len(diags) == 1
+    d = diags[0]
+    assert d.terminal_id == "7"
+    assert d.dut_failing == [2]
+    assert "сбой ДУТ" in d.verdict
+
+
+def test_diagnose_suspect_inconclusive_without_power():
+    d = sh.diagnose_suspect("7", [_packet(U_BOARD=5)], [1, 2])  # 0.5 В
+    assert d.inconclusive is True
+    assert d.dut_failing == []
+
+
 def test_assess_combines_traffic_lights_caps_and_gaps():
     activity = [{"id": 7, "dateID": (NOW - 30) * 1000}]
     consolidated = [{"consolidatedReport": {"vehicleId": 7,

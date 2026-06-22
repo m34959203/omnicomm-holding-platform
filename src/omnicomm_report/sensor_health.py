@@ -323,6 +323,93 @@ def diagnose_dut_failure(jh: JournalHealth,
     return sorted(set(baseline_dut_ids) - jh.dut_reporting)
 
 
+# --- Оркестрация: триаж (путь C) → точечный «Журнал» (путь A) ----------------
+# Тяжёлый «Журнал» дёргаем только по ТС-подозреваемым: терминал жив, но возможность
+# (напр. топливо/ДУТ) пропала vs baseline. Так объём «Журнала» остаётся в рамках лимита.
+
+# Терминал «жив» (есть смысл копать датчик) — данные приходят, не полный офлайн.
+_ALIVE = (TerminalStatus.ONLINE, TerminalStatus.STALE)
+
+
+def select_suspects(fleet: "FleetSensorHealth",
+                    capability_baseline: dict[str, CapabilityPresence],
+                    focus: Capability = Capability.FUEL,
+                    include_stale: bool = True) -> list[str]:
+    """ТС-кандидаты на точечный «Журнал»: терминал жив, но `focus`-возможность
+    была в baseline и пропала в текущем своде. OFFLINE-терминалы пропускаем —
+    это терминальный уровень, а не сбой датчика.
+    """
+    alive = _ALIVE if include_stale else (TerminalStatus.ONLINE,)
+    status = {t.terminal_id: t.status for t in fleet.terminals}
+    out: list[str] = []
+    for tid, base in capability_baseline.items():
+        if focus not in base.present:
+            continue
+        if status.get(tid) not in alive:
+            continue
+        cur = fleet.capabilities.get(tid)
+        if cur is None or focus not in cur.present:
+            out.append(tid)
+    return sorted(out)
+
+
+def learn_dut_baseline(packets: Iterable[dict]) -> set[int]:
+    """Baseline слотов ДУТ — какие слоты отдавали данные в «здоровом» окне
+    «Журнала». Используется как эталон в `diagnose_dut_failure`.
+    """
+    return journal_health("", packets).dut_reporting
+
+
+@dataclass
+class SuspectDiagnosis:
+    terminal_id: str
+    power_ok: bool
+    board_volts_max: Optional[float]
+    dut_baseline: set[int] = field(default_factory=set)
+    dut_reporting: set[int] = field(default_factory=set)
+    dut_failing: list[int] = field(default_factory=list)   # сбой при живом питании
+    inconclusive: bool = False                              # питания нет / нет данных
+
+    @property
+    def verdict(self) -> str:
+        if self.inconclusive:
+            return "не определено (нет питания/данных)"
+        if self.dut_failing:
+            return f"сбой ДУТ слот(ы) {self.dut_failing} при питании {self.board_volts_max} В"
+        return "датчики в норме"
+
+
+def diagnose_suspect(terminal_id: str, packets: Iterable[dict],
+                     dut_baseline: Iterable[int]) -> SuspectDiagnosis:
+    """Диагноз одного подозреваемого по пакетам «Журнала» + baseline слотов ДУТ."""
+    jh = journal_health(terminal_id, packets)
+    failing = diagnose_dut_failure(jh, dut_baseline)
+    return SuspectDiagnosis(
+        terminal_id=str(terminal_id), power_ok=jh.power_ok,
+        board_volts_max=jh.board_volts_max, dut_baseline=set(dut_baseline),
+        dut_reporting=jh.dut_reporting, dut_failing=failing,
+        inconclusive=(jh.packets == 0 or not jh.power_ok),
+    )
+
+
+def investigate(fleet: "FleetSensorHealth",
+                capability_baseline: dict[str, CapabilityPresence],
+                dut_baseline: dict[str, set[int]],
+                journal_fetch, *,
+                focus: Capability = Capability.FUEL) -> list[SuspectDiagnosis]:
+    """Полный цикл: отобрать подозреваемых и точечно опросить «Журнал» по каждому.
+
+    `journal_fetch(terminal_id) -> list[packet]` — инъекция (в проде = обёртка над
+    `client.get_journal`), что делает цикл тестируемым без сети.
+    """
+    suspects = select_suspects(fleet, capability_baseline, focus)
+    out: list[SuspectDiagnosis] = []
+    for tid in suspects:
+        packets = journal_fetch(tid) or []
+        out.append(diagnose_suspect(tid, packets, dut_baseline.get(tid, set())))
+    return out
+
+
 # --- Сводка ------------------------------------------------------------------
 
 @dataclass
