@@ -1,5 +1,7 @@
 # Roadmap
 
+> ⚠️ Это карта **унаследованного single-client отчёта** (`omnicomm-fleet-report`). Дорожная карта **холдинговой платформы КАП** — в [ROADMAP-holding.md](ROADMAP-holding.md).
+
 ## Сделано
 
 - [x] Каркас репозитория по стандарту dev-base (README/docs/CI/LICENSE/.env.example).
