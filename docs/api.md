@@ -97,9 +97,24 @@
 - Структура ответа: _<заполнить>_ (пробег, расход, моточасы, время работы двигателя, работа без движения…).
 - Маппинг ответ → `VehicleMetrics`: _<заполнить>_.
 
-### 16.2 `GET /ls/api/v1/reports/events/` (v1 и v2)
-- Параметры выборки событий (типы, период, ТС): _<заполнить>_.
-- Структура по топливным/скоростным событиям: _<заполнить>_.
+### 16.2 `GET /ls/api/v1/reports/events/{id}` (события) — проверено 2026-06-22
+- **Метод/форма (подтверждено эмпирически):** `GET /ls/api/v1/reports/events/{id}`,
+  тип события — в **пути `{id}`** (НЕ в теле; POST виснет). Query:
+  `vehicleIds` (повторяющийся, целые terminal_id), `timeBegin`, `timeEnd` (**unix-сек**;
+  ISO-даты `dateBegin/dateEnd` отвергаются — `code 3 "timeBegin is required"`).
+- **Структура ответа:** `{"status":{"code":0,"message":"OK"},"events":[...]}`.
+- **Коды типов (из КАП-проекта, под учёткой `kazatompromsd`):** `speeding=14`,
+  `zone_speeding=94`; параметры события (по `event_params.param_index`):
+  speeding `{0:allowed_speed, 1:average_speed, 2:duration}`,
+  zone_speeding `{0:allowed_speed, 2:average_speed, 3:duration}`.
+- ⚠️ **На нашей учётке `projectkap` события ПУСТЫ:** `{id}`=14/94/8/1/2/13/15 за 30 дней
+  по известным нарушителям → `events:[]` (code 0 OK), каталог отчётов `GET /reports/`
+  → 1 пустая запись. Endpoint доступен (не 403), но **данных нет — события не
+  провиженены для аккаунта**. КАП-код получал их под `kazatompromsd` (другие права).
+  Вывод: апгрейд детекции на реальные события требует аккаунта с включёнными
+  событиями; на `projectkap` остаёмся на геозон-эвристике (`speeding.detect_from_visits`).
+- **v2** `GET /ls/api/v2/reports/events/` (без `{id}`) с query → `404 PATH Not found`
+  в нашей форме; контракт v2 не подтверждён.
 
 ### 16.3 `GET /ls/api/v1/activity/vehicles`
 - Параметры и структура ответа (активность/простой ТС): _<заполнить>_.
