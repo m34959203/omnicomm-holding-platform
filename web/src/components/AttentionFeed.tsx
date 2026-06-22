@@ -10,7 +10,7 @@ export default function AttentionFeed({
 }: {
   signals: Signal[];
   total: number;
-  onJump: (tab: TabKey) => void;
+  onJump: (tab: TabKey, entityId?: string) => void;
 }) {
   const { t } = useLang();
 
@@ -31,8 +31,8 @@ export default function AttentionFeed({
           {signals.map((s) => (
             <li key={s.id}>
               <button
-                onClick={() => onJump(s.tab)}
-                className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-line
+                onClick={() => onJump(s.tab, s.entityId)}
+                className="grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-t border-line
                            py-2.5 text-left transition-colors hover:bg-surface/40"
               >
                 <span
@@ -42,6 +42,7 @@ export default function AttentionFeed({
                 />
                 <span className="truncate text-sm text-ink">{s.label}</span>
                 <span className="data shrink-0 text-xs text-ink-faint">{s.value}</span>
+                <span className="eyebrow shrink-0 text-ink-faint transition-colors group-hover:text-accent">→</span>
               </button>
             </li>
           ))}

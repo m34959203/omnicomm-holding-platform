@@ -87,6 +87,13 @@ body::after {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
+/* Денежные значения: шрифт с глифом ₸ (Noto Sans), без переноса. */
+.money {
+  font-family: var(--font-currency), var(--font-mono), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
 .display {
   font-family: var(--font-display);
   font-weight: 500;

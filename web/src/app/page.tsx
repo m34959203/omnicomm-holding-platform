@@ -5,6 +5,7 @@ import {
   Dashboard,
   GeoFeature,
   Maintenance,
+  Meta,
   Recommendation,
   SensorHealth,
   getDashboard,
@@ -36,19 +37,25 @@ export default function Page() {
   const [sensor, setSensor] = useState<SensorHealth | null>(null);
   const [maint, setMaint] = useState<Maintenance | null>(null);
   const [vehicleOrg, setVehicleOrg] = useState<Record<string, string>>({});
+  const [snaps, setSnaps] = useState<Meta[]>([]);
+  const [periodKey, setPeriodKey] = useState<string>("");
   const [state, setState] = useState<"loading" | "ready" | "empty" | "down">("loading");
 
   const [scope, setScope] = useState<string>("");
   const [tab, setTab] = useState<TabKey>("money");
+  const [focus, setFocus] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
 
-  const load = useCallback(async () => {
+  // Грузим конкретный снимок (по period_key) — выбор снимка/шаблона.
+  const load = useCallback(async (key?: string) => {
     try {
-      const snaps = await getSnapshots();
-      if (!snaps.length) { setState("empty"); return; }
-      const d = await getDashboard();
+      const list = await getSnapshots();
+      setSnaps(list);
+      if (!list.length) { setState("empty"); return; }
+      const k = (key ?? periodKey) || undefined;
+      const d = await getDashboard(k);
       const [g, r, sh, mt] = await Promise.all([
-        getGeozones(), getRecommendations(), getSensorHealth(), getMaintenance(),
+        getGeozones(k), getRecommendations(k), getSensorHealth(k), getMaintenance(k),
       ]);
       setDash(d);
       setGeos(g.geozones ?? []);
@@ -56,13 +63,17 @@ export default function Page() {
       setVehicleOrg(r.vehicle_org ?? {});
       setSensor(sh.sensor_health ?? null);
       setMaint(mt.maintenance ?? null);
+      if (d.meta?.period_key) setPeriodKey(d.meta.period_key);
       setState("ready");
     } catch {
       setState("down");
     }
-  }, []);
+  }, [periodKey]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const selectSnapshot = (k: string) => { setPeriodKey(k); load(k); };
+  const onJump = (t: TabKey, entityId?: string) => { setTab(t); setFocus(entityId ?? null); };
 
   // deep-link: читать ?tab/?scope при маунте, писать при изменении (без перезагрузки).
   useEffect(() => {
@@ -156,7 +167,7 @@ export default function Page() {
               className="data mt-2 text-xs text-ink-faint lg:pointer-events-none"
             >
               {num(node.vehicle_count)} {t("scope.vehicles")}
-              {dash?.fleet ? ` · данные у ${num(dash.fleet.with_data)}` : ""}
+              {` · данные у ${num(node.kpi.vehicles_with_data ?? 0)}`}
               <span className="lg:hidden"> · {t("scope.title")} ▾</span>
             </button>
           )}
@@ -167,7 +178,10 @@ export default function Page() {
           <SyncBar
             syncedAt={meta?.synced_at ?? null}
             periodLabel={dash?.period?.label ?? null}
-            onDone={load}
+            onDone={() => load(periodKey)}
+            snapshots={snaps}
+            periodKey={periodKey}
+            onSelectSnapshot={selectSnapshot}
           />
         </div>
 
@@ -192,7 +206,7 @@ export default function Page() {
             /></div>
 
             <div className="rise" style={{ animationDelay: "60ms" }}>
-              <AttentionFeed signals={signals} total={allSignals.length} onJump={setTab} />
+              <AttentionFeed signals={signals} total={allSignals.length} onJump={onJump} />
             </div>
 
             <div className="rise" style={{ animationDelay: "120ms" }}>
@@ -202,16 +216,17 @@ export default function Page() {
                 recsCount={recsS.length}
                 sensor={sensorS}
                 maint={maintS}
-                onOpen={setTab}
+                onOpen={(tk) => onJump(tk)}
               />
             </div>
 
             <div className="rise" style={{ animationDelay: "180ms" }}>
               <DomainTabs
-                tab={tab} onTab={setTab}
+                tab={tab} onTab={(tk) => onJump(tk)}
                 eco={dash?.economics ?? null}
                 recs={recsS} sensor={sensorS} maint={maintS}
                 geos={geos} scoped={scoped} speedByOrg={speedByOrg}
+                focusId={focus}
               />
             </div>
           </div>

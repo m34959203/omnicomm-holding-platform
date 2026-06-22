@@ -1,21 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Job, getJob, startSync } from "@/lib/api";
+import { Job, Meta, getJob, startSync } from "@/lib/api";
 import { ago } from "@/lib/format";
 
 interface Props {
   syncedAt: number | null;
   periodLabel: string | null;
   onDone: () => void;
+  snapshots: Meta[];
+  periodKey: string;
+  onSelectSnapshot: (key: string) => void;
 }
 
-export default function SyncBar({ syncedAt, periodLabel, onDone }: Props) {
+// Готовые шаблоны периода: один клик собирает снимок за нужный диапазон.
+const TEMPLATES: { label: string; days: number }[] = [
+  { label: "Сутки", days: 1 },
+  { label: "2 суток", days: 2 },
+  { label: "Неделя", days: 7 },
+];
+
+export default function SyncBar({
+  syncedAt, periodLabel, onDone, snapshots, periodKey, onSelectSnapshot,
+}: Props) {
   const [job, setJob] = useState<Job | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const running = job?.status === "running" || job?.status === "pending";
 
-  // Polling прогресса — надёжнее SSE за Cloudflare/реверс-прокси.
   function poll(id: string) {
     if (timer.current) clearInterval(timer.current);
     timer.current = setInterval(async () => {
@@ -34,9 +45,9 @@ export default function SyncBar({ syncedAt, periodLabel, onDone }: Props) {
 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
-  async function trigger() {
+  async function trigger(range?: { start_ts: number; end_ts: number }) {
     try {
-      const j = await startSync(false); // прод: live-синк КАП
+      const j = await startSync(false, range);
       setJob(j);
       if (j.status === "done") onDone();
       else if (j.status !== "error") poll(j.id);
@@ -48,56 +59,70 @@ export default function SyncBar({ syncedAt, periodLabel, onDone }: Props) {
     }
   }
 
+  function syncTemplate(days: number) {
+    const end = Math.floor(Date.now() / 1000);
+    trigger({ start_ts: end - days * 86400, end_ts: end });
+  }
+
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-baseline gap-3">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* выбор снимка */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="eyebrow">Снимок данных</span>
-        <span className="data text-xs text-ink-dim">
-          {syncedAt
-            ? `${periodLabel ?? ""} · обновлён ${ago(syncedAt)}`
-            : "снимок ещё не собран"}
-        </span>
+        {snapshots.length > 0 ? (
+          <select
+            value={periodKey || snapshots[0]?.period_key || ""}
+            onChange={(e) => onSelectSnapshot(e.target.value)}
+            className="data border border-line-strong bg-transparent px-2 py-1 text-xs text-ink
+                       focus:border-accent focus:outline-none"
+          >
+            {snapshots.map((s) => (
+              <option key={s.period_key} value={s.period_key} className="bg-surface text-ink">
+                {s.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="data text-xs text-ink-dim">снимок ещё не собран</span>
+        )}
+        {syncedAt && (
+          <span className="data text-xs text-ink-faint">обновлён {ago(syncedAt)}</span>
+        )}
       </div>
 
-      <div className="flex items-center gap-4">
+      {/* шаблоны периода + статус + ручной синк */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="eyebrow text-ink-faint">Собрать за:</span>
+        {TEMPLATES.map((tpl) => (
+          <button
+            key={tpl.days}
+            onClick={() => syncTemplate(tpl.days)}
+            disabled={running}
+            className="border border-line-strong px-2.5 py-1 text-[0.7rem] uppercase tracking-[0.12em]
+                       text-ink-dim transition-colors hover:border-accent hover:text-accent
+                       disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            {tpl.label}
+          </button>
+        ))}
+
         {running && (
-          <div className="flex items-center gap-3">
-            <div className="relative h-[2px] w-44 overflow-hidden bg-line-strong">
-              <div
+          <span className="flex items-center gap-2">
+            <span className="relative h-[2px] w-28 overflow-hidden bg-line-strong">
+              <span
                 className="absolute inset-y-0 left-0 bg-accent transition-[width] duration-500 ease-out"
                 style={{ width: `${job?.pct ?? 0}%` }}
               />
-            </div>
-            <span className="data w-10 text-right text-xs text-accent">
+            </span>
+            <span className="data w-9 text-right text-xs text-accent">
               {Math.round(job?.pct ?? 0)}%
             </span>
-          </div>
-        )}
-        {running && (
-          <span className="data max-w-[16rem] truncate text-xs text-ink-dim">
-            {job?.message}
           </span>
         )}
         {job?.status === "error" && (
           <span className="data text-xs text-danger">Ошибка синка — сервер жив</span>
         )}
-
-        <button
-          onClick={trigger}
-          disabled={running}
-          className="group relative flex items-center gap-2 border border-line-strong px-4 py-2
-                     text-xs uppercase tracking-[0.15em] text-ink
-                     transition-colors hover:border-accent hover:text-accent
-                     disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          <span
-            className={`live-dot inline-block h-1.5 w-1.5 rounded-full ${
-              running ? "bg-accent" : "bg-ink-faint"
-            }`}
-          />
-          {running ? "Синхронизация…" : "Синхронизировать"}
-        </button>
       </div>
     </div>
   );

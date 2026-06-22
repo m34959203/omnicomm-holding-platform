@@ -22,6 +22,7 @@ export interface Signal {
   value: string;
   tab: TabKey;
   weight: number;
+  entityId?: string; // terminal_id/имя — для drill к конкретной проблеме
 }
 
 // Плоский индекс дерева организаций по org_id (строится один раз).
@@ -91,11 +92,14 @@ export function buildSignals(
 ): Signal[] {
   const out: Signal[] = [];
 
+  // Ранжирование по УРОВНЯМ: danger (3000+) всегда выше warn (<1000),
+  // внутри уровня — по величине. Без этого ₸-потери забивали грубые превышения.
   for (const i of maint?.items ?? []) {
     if (i.status === "просрочено") {
       out.push({
         id: `maint-${i.terminal_id}`, severity: "danger", kind: "maint",
-        label: i.name || i.terminal_id, value: "ТО просрочено", tab: "maint", weight: 200,
+        label: i.name || i.terminal_id, value: "ТО просрочено", tab: "maint", weight: 3000,
+        entityId: i.terminal_id,
       });
     }
   }
@@ -104,7 +108,7 @@ export function buildSignals(
       out.push({
         id: `speed-${r.terminal_id}`, severity: "danger", kind: "speed",
         label: r.name || r.terminal_id, value: `+${Math.round(r.max_excess)} км/ч · ${r.episodes}`,
-        tab: "speed", weight: 100 + r.max_excess,
+        tab: "speed", weight: 2000 + r.max_excess, entityId: r.terminal_id,
       });
     }
   }
@@ -112,17 +116,18 @@ export function buildSignals(
   if (offline.length) {
     out.push({
       id: "sensor-offline", severity: "warn", kind: "sensor",
-      label: `${offline.length} терминалов офлайн`, value: "нет данных", tab: "quality", weight: 80,
+      label: `${offline.length} терминалов офлайн`, value: "нет данных", tab: "quality", weight: 500,
     });
   }
   // worst_vehicles по ₸ — только на уровне холдинга (клиентски не скоупится).
   if (!scoped) {
-    for (const [name, v] of (economics?.worst_vehicles ?? []).slice(0, 2)) {
+    (economics?.worst_vehicles ?? []).slice(0, 3).forEach(([name], idx) => {
       out.push({
         id: `cost-${name}`, severity: "warn", kind: "cost",
-        label: name, value: "крупные потери", tab: "money", weight: 50 + v,
+        label: name, value: "крупные потери", tab: "money", weight: 400 - idx,
+        entityId: name,
       });
-    }
+    });
   }
 
   return out.sort((a, b) => b.weight - a.weight).slice(0, limit);

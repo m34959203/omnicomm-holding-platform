@@ -23,13 +23,14 @@ export default function TileKPI({
     tone === "accent" ? "bg-accent" : tone === "warn" ? "bg-warn"
       : tone === "danger" ? "bg-danger" : "bg-ink-dim";
 
+  const font = value.includes("₸") ? "money" : "data";
   return (
-    <div className="flex flex-col gap-1 border-t border-line py-3">
+    <div className="flex min-w-0 flex-col gap-1 overflow-hidden border-t border-line py-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="eyebrow">{label}</span>
+        <span className="eyebrow truncate">{label}</span>
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
       </div>
-      <span className={`data whitespace-nowrap text-2xl leading-tight ${valueColor}`}>{value}</span>
+      <span className={`${font} truncate text-2xl leading-tight ${valueColor}`}>{value}</span>
       {sub && <span className="data text-[0.7rem] text-ink-faint">{sub}</span>}
       {share != null && (
         <span className="mt-1 block h-1 bg-line-strong">

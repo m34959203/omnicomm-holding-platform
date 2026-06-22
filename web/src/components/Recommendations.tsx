@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Recommendation } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
@@ -14,14 +14,30 @@ const SEV_TONE: Record<string, string> = {
 const DEFAULT_SHOWN = 12;
 
 export default function Recommendations({
-  recs, topOrgs = [],
+  recs, topOrgs = [], focusId,
 }: {
   recs: Recommendation[];
   topOrgs?: { label: string; value: number }[];
+  focusId?: string | null;
 }) {
   const { t } = useLang();
   const [open, setOpen] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const focusRef = useRef<HTMLLIElement | null>(null);
+
+  // Drill из ленты «Что требует внимания»: раскрыть список, открыть карточку,
+  // проскроллить и подсветить конкретного нарушителя.
+  useEffect(() => {
+    if (!focusId) return;
+    const idx = recs.findIndex((r) => r.terminal_id === focusId);
+    if (idx < 0) return;
+    if (idx >= DEFAULT_SHOWN) setShowAll(true);
+    setOpen(focusId);
+    const id = setTimeout(() => {
+      focusRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    return () => clearTimeout(id);
+  }, [focusId, recs]);
 
   const gross = recs.filter((r) => r.worst_severity === "грубое").length;
   const episodes = recs.reduce((s, r) => s + r.episodes, 0);
@@ -49,7 +65,12 @@ export default function Recommendations({
       </p>
     );
 
-  const shown = showAll ? recs.slice(0, 60) : recs.slice(0, DEFAULT_SHOWN);
+  let shown = showAll ? recs.slice(0, 60) : recs.slice(0, DEFAULT_SHOWN);
+  // Закрепить нарушителя из drill вверху, если он за пределами среза.
+  if (focusId && !shown.some((r) => r.terminal_id === focusId)) {
+    const f = recs.find((r) => r.terminal_id === focusId);
+    if (f) shown = [f, ...shown];
+  }
 
   return (
     <div>
@@ -88,8 +109,13 @@ export default function Recommendations({
       <ul className="mt-2">
         {shown.map((r) => {
           const isOpen = open === r.terminal_id;
+          const focused = focusId === r.terminal_id;
           return (
-            <li key={r.terminal_id} className="border-t border-line">
+            <li
+              key={r.terminal_id}
+              ref={focused ? focusRef : null}
+              className={`border-t border-line ${focused ? "bg-surface ring-1 ring-accent/50" : ""}`}
+            >
               <button
                 onClick={() => setOpen(isOpen ? null : r.terminal_id)}
                 className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 py-3 text-left

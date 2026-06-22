@@ -160,11 +160,14 @@ export const excelUrl = (key?: string) =>
 
 export const getSnapshots = () => get<Meta[]>(`/api/snapshots`);
 
-export async function startSync(demo = false): Promise<Job> {
+export async function startSync(
+  demo = false,
+  range?: { start_ts: number; end_ts: number },
+): Promise<Job> {
   const r = await fetch(`${API}/api/sync`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ demo }),
+    body: JSON.stringify({ demo, ...(range ?? {}) }),
   });
   if (!r.ok) throw new Error(`sync → ${r.status}`);
   return r.json();

@@ -1,6 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Spectral, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { Spectral, IBM_Plex_Sans, JetBrains_Mono, Noto_Sans } from "next/font/google";
 import "./globals.css";
+
+// Валютный шрифт: JetBrains/IBM Plex в subset latin+cyrillic НЕ содержат ₸ (U+20B8)
+// → браузер подставлял огромный фолбэк-глиф, ломавший сетку плиток. Noto Sans
+// содержит ₸ — применяем к денежным значениям через класс .money.
+const currency = Noto_Sans({
+  variable: "--font-currency",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
 
 const spectral = Spectral({
   variable: "--font-spectral",
@@ -38,7 +47,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${spectral.variable} ${body.variable} ${jetbrains.variable} h-full`}
+      className={`${spectral.variable} ${body.variable} ${jetbrains.variable} ${currency.variable} h-full`}
     >
       <body className="min-h-full">{children}</body>
     </html>
