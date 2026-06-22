@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from omnicomm_report import (
-    data_loader, demo_data, economics, geozones, org as org_mod,
+    classify, data_loader, demo_data, economics, geozones, org as org_mod,
     recommendations, rollup, speeding, validator)
 from omnicomm_report.models import ReportPeriod
 
@@ -143,12 +143,21 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
     holding_id = kpi_tree[0].org.org_id if kpi_tree else None
     eco = None
     if holding_id:
+        # Вентиль доверия: экономику (потери/COI/рейтинг «Первоочередные ТС»)
+        # считаем ТОЛЬКО по транспорту — стационарные объекты (АЗС/ёмкости/ФЭС/
+        # генераторы) не машины и не должны «жечь топливо» в денежном рейтинге.
+        transport = [v for v in vehicles if classify.is_transport(v.name)]
         rep = dashboard.build_org_report(
-            holding_id, vehicles, period, tree,
+            holding_id, transport, period, tree,
             vehicle_org=vehicle_org, fuel_price_kzt=fuel_price_kzt)
         eco = economics.build_economics(rep)
+        if eco is not None:  # подстраховка, если имя просочилось из другого источника
+            eco.worst_vehicles = [
+                (n, v) for (n, v) in eco.worst_vehicles if classify.is_transport(n)]
     recs = recommendations.recommend_fleet(
         violations, names={str(v.vehicle_id): v.name for v in vehicles})
+    # И из рекомендаций по скоростному режиму (стационарный объект не «нарушитель»).
+    recs = [r for r in recs if classify.is_transport(getattr(r, "name", None))]
 
     progress(94, "Геозоны для карты")
     snapshot = {
