@@ -243,6 +243,29 @@ TERMINAL_STALE_AFTER_MIN = 60        # данных нет > часа → STALE 
 TERMINAL_OFFLINE_AFTER_HOURS = 24    # данных нет > суток → OFFLINE (🔴)
 
 
+# --- Контроль ТО (R6) ---------------------------------------------------------
+# Дефолт-интервалы ТО по КЛАССУ ТС (до согласования по модели с заказчиком):
+# подвижная техника считается по пробегу, стационарная/спецтехника — по моточасам.
+# Точные интервалы по модели заведутся справочником при онбординге (R6.2).
+MAINT_INTERVAL_KM_MOBILE = float(os.getenv("MAINT_INTERVAL_KM_MOBILE", "15000") or 15000)
+MAINT_INTERVAL_MH_STATIONARY = float(os.getenv("MAINT_INTERVAL_MH_STATIONARY", "250") or 250)
+MAINT_REMIND_BEFORE_KM = float(os.getenv("MAINT_REMIND_BEFORE_KM", "1000") or 1000)
+MAINT_REMIND_BEFORE_MH = float(os.getenv("MAINT_REMIND_BEFORE_MH", "25") or 25)
+
+
+# --- Спец-лимит по типу груза (R4.4, ADR) -------------------------------------
+# Для опасных грузов (ADR) внутренний стандарт снижает лимит на величину ниже.
+# Привязка ТС→тип груза приходит отдельным справочником (согласует Данияр) —
+# пока каркас: смещение применяется к ТС, помеченным как перевозящие опасный груз.
+ADR_SPEED_REDUCTION_KMH = int(os.getenv("ADR_SPEED_REDUCTION_KMH", "30") or 30)
+
+
+# --- Частота обновления данных (R2.4) -----------------------------------------
+# Сколько раз в сутки cron тянет данные из Omnicomm. Админ-настройка (не польз.):
+# меняется в ENV и в крон-расписании деплоя (см. docs/DEPLOY-holding.md).
+REFRESH_TIMES_PER_DAY = int(os.getenv("REFRESH_TIMES_PER_DAY", "8") or 8)
+
+
 @dataclass
 class Settings:
     """Среда выполнения. Загружается из ENV: LOGIN, PASSWORD, SERVICE."""

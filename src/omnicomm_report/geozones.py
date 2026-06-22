@@ -189,3 +189,16 @@ def geozone_limit(geozone: str, category: VehicleCategory,
 
     return GeozoneLimit(geozone=geozone, category=category, limit=limit,
                         zone=zone, public_road=is_public_road(zone), source=source)
+
+
+def apply_adr_offset(limit: int, is_adr_cargo: bool) -> int:
+    """Снизить лимит для ТС с опасным грузом (ADR) на величину СТ КАП (R4.4).
+
+    Привязка ТС→тип груза приходит отдельным справочником (согласует Данияр) —
+    функция применяет смещение `config.ADR_SPEED_REDUCTION_KMH`, когда флаг задан.
+    Без справочника флаг всегда False → поведение не меняется (каркас на будущее).
+    """
+    from . import config
+    if not is_adr_cargo:
+        return limit
+    return max(0, limit - config.ADR_SPEED_REDUCTION_KMH)

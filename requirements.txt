@@ -8,6 +8,7 @@ python-dotenv>=1.0,<2
 
 # Веб-интерфейс (ТЗ §13) — `streamlit run app.py`
 streamlit>=1.33
+pydeck>=0.9,<1   # карта геозон в портале (geomap.py) — базовая карта Carto, без токена
 
 # Опционально — REST API-обёртка (ТЗ §11)
 # fastapi>=0.110

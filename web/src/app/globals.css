@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   EDITORIAL-NOIR — система платформы Omnicomm Holding
+   Тёмный «ночной дайджест автопарка»: контрастный серив-дисплей, моно-данные,
+   волосяные линии, щедрый воздух, ОДИН кислотный сигнальный акцент (signal lime).
+   ========================================================================= */
+
+:root {
+  --paper: #0c0c0d;          /* фон — тёплый почти-чёрный */
+  --paper-2: #111113;        /* приподнятый фон секций */
+  --surface: #151517;        /* карточки */
+  --surface-2: #1b1b1e;      /* карточки поверх карточек / hover */
+  --ink: #ece8df;            /* основной текст — тёплая кость */
+  --ink-dim: #93908a;        /* приглушённый */
+  --ink-faint: #5d5b56;      /* подписи/мета */
+  --line: rgba(236, 232, 223, 0.10);   /* волосяные линии */
+  --line-strong: rgba(236, 232, 223, 0.20);
+
+  --accent: #ccfa4e;         /* ЕДИНСТВЕННЫЙ акцент — signal lime */
+  --accent-dim: #9bbf3a;
+  --danger: #ff5d52;         /* превышения / опасность */
+  --warn: #f0a338;           /* простой / внимание */
+  --cool: #7fb2d9;           /* нейтральная инфо */
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-cool: var(--cool);
+
+  --font-display: var(--font-spectral);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-jetbrains);
+}
+
+* { border-color: var(--line); }
+
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv01";
+  background-image:
+    radial-gradient(120% 80% at 78% -10%, rgba(204, 250, 78, 0.06), transparent 60%),
+    radial-gradient(80% 60% at 0% 0%, rgba(127, 178, 217, 0.04), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* зернистый оверлей поверх всего — печатная текстура */
+body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  opacity: 0.035; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- Типографические примитивы ---- */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.numeral {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+.data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.0;
+}
+
+.rule { height: 1px; background: var(--line); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-2); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- появление при загрузке (staggered) ---- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rise { opacity: 0; animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+.sweep { position: relative; overflow: hidden; }
+.sweep::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(204,250,78,0.18), transparent);
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(204,250,78,0.5); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(204,250,78,0); }
+}
+.live-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .sweep::after, .live-dot { animation: none; opacity: 1; }
+}
