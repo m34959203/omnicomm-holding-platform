@@ -32,7 +32,8 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from omnicomm_report import (  # noqa: E402
-    auth, config, dashboard, demo_data, economics, holding, org as org_mod, rollup)
+    ai_engine, auth, config, dashboard, demo_data, economics, geozones, holding,
+    org as org_mod, recommendations, rollup, speeding)
 from omnicomm_report.config import Settings, load_env_file  # noqa: E402
 from omnicomm_report.models import ReportPeriod  # noqa: E402
 from omnicomm_report.org import DEFAULT_ORG_REGISTRY, OrgLevel  # noqa: E402
@@ -157,6 +158,47 @@ def _load_fleet(demo: bool, start_ts: int, end_ts: int, _vehicle_org: dict):
     return veh
 
 
+def _demo_violations(vehicles) -> dict:
+    """Синтетические превышения для демо (в рамке ДЕМО) — показать движок СТ КАП."""
+    out: dict = {}
+    for v in vehicles:
+        ms = v.max_speed_kmh or 0
+        if ms <= 60:
+            continue
+        excess = round(ms - 60, 1)
+        public = (abs(hash(str(v.vehicle_id))) % 2 == 0)
+        art, fine = (speeding.koap_for(excess) if public else (None, None))
+        out[str(v.vehicle_id)] = [speeding.Violation(
+            terminal_id=str(v.vehicle_id), geozone="Демо-участок 60 км/ч",
+            limit=60, max_speed=float(ms), excess=excess, duration_s=300, start_ts=0,
+            points=1, public_road=public, st_kap_severity=speeding.st_kap_severity(excess),
+            koap_article=art, fine_kzt=fine)]
+    return out
+
+
+@st.cache_data(show_spinner=False)
+def _load_violations(demo: bool, start_ts: int, end_ts: int, _vehicle_org: dict) -> dict:
+    """Превышения по парку: {terminal_id -> [Violation]}.
+
+    Боевой контур: seed геозон из `list_geozones` + детекция по визитам
+    `geozones_report` (СТ КАП, без геометрии). Демо: синтетика.
+    """
+    p = ReportPeriod(start=datetime.fromtimestamp(start_ts, timezone.utc),
+                     end=datetime.fromtimestamp(end_ts, timezone.utc))
+    if demo:
+        return _demo_violations(demo_data.demo_fleet(p))
+    try:
+        from omnicomm_report.api_client import OmnicommClient
+        client = OmnicommClient(Settings.from_env())
+        client.login()
+        seed = geozones.build_seed(client.list_geozones())
+        ids = [str(t) for t in _vehicle_org]
+        visits = client.get_geozones_report(ids, p)
+        return speeding.detect_from_visits(visits, seed=seed)
+    except Exception:  # noqa: BLE001 — детекция не должна валить дашборд
+        return {}
+
+
 with st.spinner("Сборка дашборда…" if DEMO_MODE else "Запрос данных из Omnicomm…"):
     try:
         # deepcopy: analyze/compute_kpi мутируют ТС (фильтр скорости, аномалии),
@@ -169,6 +211,8 @@ with st.spinner("Сборка дашборда…" if DEMO_MODE else "Запро
         st.stop()
     kpi_tree = rollup.build_org_kpi_tree(
         vehicles, tree, fuel_price_kzt=fuel_price, vehicle_org=registry.vehicle_org)
+    violations_all = _load_violations(
+        DEMO_MODE, period.start_ts, period.end_ts, registry.vehicle_org)
 
 
 # --- Выбор узла (drill через session_state) -----------------------------------
@@ -228,6 +272,31 @@ def _report_for(oid: str):
             vehicle_org=registry.vehicle_org, fuel_price_kzt=fuel_price)
         _report_cache[oid] = (rep, economics.build_economics(rep))
     return _report_cache[oid]
+
+
+_recs_cache: dict = {}
+
+
+def _recs_for(oid: str):
+    """Рекомендации на букве закона для поддерева узла (новый движок СТ КАП → КоАП)."""
+    if oid not in _recs_cache:
+        rep, _ = _report_for(oid)
+        sub_ids = {str(v.vehicle_id) for v in rep.vehicles}
+        names = {str(v.vehicle_id): (v.name or v.vehicle_id) for v in rep.vehicles}
+        sub_viol = {t: vs for t, vs in violations_all.items() if t in sub_ids}
+        _recs_cache[oid] = recommendations.recommend_fleet(sub_viol, names)
+    return _recs_cache[oid]
+
+
+def _polished_texts(recs, limit: int = 3) -> list[str]:
+    """Тексты top-N рекомендаций, переписанные ИИ-слоем (fallback = текст системы)."""
+    out = []
+    for r in recs[:limit]:
+        try:
+            out.append(ai_engine.polish_recommendation(r))
+        except Exception:  # noqa: BLE001
+            out.append(r.as_text())
+    return out
 
 
 def _actions(rep, eco) -> list[str]:
@@ -299,26 +368,38 @@ def _render_summary(node):
         for act in _actions(rep, eco):
             st.markdown(f"- {act}")
 
-    # Безопасность · скоростной режим (для КАП — ключевое, как в их Power BI)
-    st.markdown("**🚦 Безопасность · скоростной режим**")
-    sc = st.columns(3)
-    sc[0].metric("Пробег с превышением", f"{k.speeding_mileage_share * 100:.0f}%")
-    sc[1].metric("Макс. скорость", f"{k.max_speed_kmh:.0f} км/ч")
-    spd = sorted(
-        (v for v in rep.vehicles if v.has_data and v.mileage_km
-         and (v.speeding_mileage_km or 0) / (v.mileage_km or 1) >= config.ALERT_SPEEDING_SHARE),
-        key=lambda v: (v.speeding_mileage_km or 0) / (v.mileage_km or 1), reverse=True)
-    sc[2].metric("ТС с превышениями", f"{len(spd)}")
-    if spd:
-        st.caption("Чаще превышают: " + " · ".join(
-            f"{v.name} ({(v.speeding_mileage_km / v.mileage_km) * 100:.0f}%)"
-            for v in spd[:3]))
+    # Безопасность · скоростной режим по СТ КАП (детекция → квалификация → рекомендации)
+    st.markdown("**🚦 Безопасность · скоростной режим (СТ Казатомпром)**")
+    recs = _recs_for(sel_id)
+    sc = st.columns(4)
+    sc[0].metric("ТС с превышениями", f"{len(recs)}")
+    sc[1].metric("Эпизодов всего", f"{sum(r.episodes for r in recs)}")
+    sc[2].metric("Грубых (≥6 км/ч)", f"{sum(1 for r in recs if r.worst_severity == 'грубое')}")
+    sc[3].metric("Макс. скорость", f"{k.max_speed_kmh:.0f} км/ч")
+    if recs:
+        st.markdown("**Рекомендации на букве закона:**")
+        for text in _polished_texts(recs, limit=3):
+            st.markdown(f"- {text}")
+        if len(recs) > 3:
+            st.caption(f"…и ещё {len(recs) - 3} ТС — в разделе ниже.")
     else:
-        st.caption("ТС с превышением >10% пробега за период нет.")
+        st.caption("Устойчивых превышений по геозонам СТ КАП за период не выявлено.")
 
     # --- Детали (свёрнуто) ---
     st.divider()
     active = [v for v in rep.vehicles if v.has_data and (v.fuel_l or 0) > 0]
+
+    if recs:
+        with st.expander(f"🚦 Все рекомендации по скоростному режиму ({len(recs)})"):
+            st.dataframe(pd.DataFrame([{
+                "ТС": r.name or r.terminal_id,
+                "Эпизодов": r.episodes,
+                "Макс +км/ч": r.max_excess,
+                "Тяжесть (СТ КАП)": r.worst_severity,
+                "Дороги общ. польз.": r.public_episodes,
+                "Техдороги": r.tech_episodes,
+                "Статья КоАП": r.worst_article or "—",
+            } for r in recs]), hide_index=True, width="stretch")
 
     with st.expander("🚛 Первоочередные ТС"):
         if eco.worst_vehicles:
