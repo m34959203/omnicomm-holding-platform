@@ -432,3 +432,18 @@ get_journal по свежему ТС (бортсеть 25.2В, ДУТ слот {
 PBKDF2 (не base64); KOAP_VERIFIED=False гасит суммы. Доки исправлены: ROADMAP ✅→🟡 «на полке»,
 ТЗ-баннер (статусы §4-7 устарели). Полный аудит — docs/AUDIT-2026-06-22.md. Закрытие разрыва: seed
 геозон из live + привязка через geozones_report + прокинуть цепочку в holding + заменить рекомендации в дашборде.
+
+## Чек-поинт 2026-06-22 (15) — детекция по визитам геозон + AI-движок на Claude
+
+- **Закрыт разрыв аудита №2 (геометрия):** `geozones_report` отдаёт визиты с `geozoneName`
+  (лимит в имени) + `mv.maxSpeed`/`mileageSpeeding` → `speeding.detect_from_visits` детектит
+  превышения БЕЗ привязки точка→полигон. `geozones.build_seed`/`seed_limit` — справочник из
+  live `list_geozones` (200 геозон). list_geozones к тому же несёт `points` (полигоны есть).
+- **AI-движок на Claude (запрос Дмитрия):** `ai_engine.py` — Claude (anthropic SDK,
+  claude-opus-4-8) ТОЛЬКО переформулирует посчитанные движком факты (статья/ставка/тип дороги/
+  действие), НЕ источник права (инварианты соблюдены). Graceful fallback на детерминированный
+  `Recommendation.as_text()` при отсутствии ключа/сети. Ключ ANTHROPIC_API_KEY из ENV (в этой среде
+  нет — будет в прод-.env). config AI_RECOMMENDATIONS_ENABLED/AI_MODEL. 243 теста зелёных.
+- **Остаётся (главный разрыв аудита):** прокинуть цепочку
+  `geozones_report → detect_from_visits → recommend_fleet → ai_engine.polish` в `holding`/портал
+  и заменить старый `analytics.build_recommendations` на дашборде. Движки готовы, нужна проводка в UI.
