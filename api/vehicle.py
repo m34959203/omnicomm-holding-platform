@@ -56,6 +56,20 @@ def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     Телеметрия (сводный отчёт ~16с на медленном контуре) грузится отдельно `telemetry()`.
     """
     client = _get_client()
+
+    # Текущее состояние (мгновенное, лёгкий вызов): напряжение бортсети, адрес,
+    # зажигание, текущие скорость/топливо — из /vehicles/{id}/state.
+    st = client.get_vehicle_state(str(terminal_id))
+    state = {
+        "voltage": st.get("voltage"),
+        "address": st.get("address"),
+        "ignition": st.get("currentIgn"),
+        "current_speed": st.get("currentSpeed"),
+        "current_fuel": st.get("currentFuel"),
+        "last_data_ts": st.get("lastDataDate"),
+        "sat": st.get("lastGPSSat"),
+    } if st else {}
+
     raw = client.get_track(str(terminal_id), _period(start_ts, end_ts))
     pts = [p for p in raw
            if p.get("latitude") is not None and p.get("longitude") is not None]
@@ -74,6 +88,7 @@ def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
         "last": track[-1] if track else None,
         "track_points": len(track),
         "track_max_speed": round(max((t["speed"] for t in track), default=0), 1),
+        "state": state,
         "telemetry": {},
     }
 

@@ -452,6 +452,36 @@ class OmnicommClient:
         """
         return _as_list(self._request("GET", "activity_vehicles"))
 
+    def get_vehicle_state(self, vehicle_id: str) -> dict:
+        """Текущее состояние ТС: GET /ls/api/v1/vehicles/{id}/state.
+
+        Мгновенные значения последнего пакета (раздел «Посл. данные» карточки):
+        `voltage` (НАПРЯЖЕНИЕ БОРТСЕТИ), `currentSpeed`, `currentFuel`, `currentIgn`,
+        `lastGPS{latitude,longitude}`, `lastGPSDir`, `lastGPSSat`, `address`,
+        `lastDataDate`, `speedExceed`. Работает по terminal_id и по uuid.
+        Лёгкий быстрый вызов (не отчёт) — годится для карточки ТС онлайн.
+        """
+        url = self._settings.base_url.rstrip("/") + f"/ls/api/v1/vehicles/{vehicle_id}/state"
+        reauthed = False
+        for _ in range(2):
+            self._ensure_token()
+            try:
+                self._throttle()
+                resp = self._session.get(url, headers=self._auth_header(),
+                                         timeout=config.DEFAULT_TIMEOUT)
+                self._last_request_at = time.monotonic()
+                if resp.status_code in (401, 403) and not reauthed:
+                    self.refresh()
+                    reauthed = True
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                return data if isinstance(data, dict) else {}
+            except (requests.RequestException, ValueError) as exc:
+                logger.warning("state %s: %s", vehicle_id, exc)
+                return {}
+        return {}
+
     def get_journal(self, terminal_id: str, period: ReportPeriod, *,
                     groups: Optional[list[str]] = None,
                     columns: Optional[list[str]] = None) -> list[dict]:

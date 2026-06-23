@@ -119,6 +119,20 @@
 ### 16.3 `GET /ls/api/v1/activity/vehicles`
 - Параметры и структура ответа (активность/простой ТС): _<заполнить>_.
 
+### 16.5 `GET /ls/api/v1/vehicles/{id}/state` — текущее состояние ТС (проверено 2026-06-23)
+- **Метод:** GET, `{id}` = terminal_id ИЛИ uuid (оба работают; v2 → 404). Лёгкий быстрый вызов (~0.5с).
+- **Ответ:** мгновенные значения последнего пакета (раздел «Посл. данные» карточки Omnicomm):
+  ```json
+  {"lastGPS":{"latitude":..,"longitude":..}, "lastGPSDir":.., "lastGPSSat":..,
+   "currentSpeed":68.5, "currentFuel":252.2, "currentIgn":true, "speedExceed":false,
+   "voltage":27.6, "checkVoltage":0, "address":"…", "lastDataDate":<unix>, "currentInputValue":[]}
+  ```
+- ✅ **`voltage` = НАПРЯЖЕНИЕ БОРТСЕТИ доступно** (12В→~13.8, 24В→~27.6). Это исправляет прежний вывод
+  «напряжение недоступно через REST»: оно НЕ в дневном `consolidatedReport` (там нет voltage ни в
+  mv/fuel/uniDataList/ccan/canmt/can), но есть в текущем состоянии `/vehicles/{id}/state`.
+  **Снимает блокер Sensor Health ур.1.5** («сбой ДУТ vs обесточенный терминал» — voltage как gate).
+- Применено: карточка ТС (`api/vehicle.py` → `client.get_vehicle_state`).
+
 ### 16.4 Каталог отчётов
 - Фактический вывод `GET /ls/api/v1/reports/` с подтверждёнными `id`/`code`/`group`/`objectTypes`: _<заполнить>_.
 

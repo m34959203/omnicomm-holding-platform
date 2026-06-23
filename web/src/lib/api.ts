@@ -115,6 +115,15 @@ export interface VehicleDetail {
   last: TrackPoint | null;
   track_points: number;
   track_max_speed: number;
+  state: {
+    voltage?: number | null;
+    address?: string | null;
+    ignition?: boolean | null;
+    current_speed?: number | null;
+    current_fuel?: number | null;
+    last_data_ts?: number | null;
+    sat?: number | null;
+  };
   telemetry: Record<string, number | null>;
 }
 

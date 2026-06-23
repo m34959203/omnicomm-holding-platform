@@ -108,9 +108,41 @@ export default function VehicleCard({
                 className="w-full">
                 {!data && <div className="flex h-full items-center justify-center text-sm text-ink-faint">загрузка трека…</div>}
               </div>
-              {/* телеметрия */}
+              {/* состояние онлайн + телеметрия */}
               <div className="flex flex-col bg-paper p-6" style={{ background: "var(--paper)" }}>
-                <span className="eyebrow">Телеметрия · за сутки</span>
+                <span className="eyebrow">Состояние · онлайн</span>
+                <div className="mt-3 grid grid-cols-2 gap-x-6">
+                  <div className="border-t border-line py-3">
+                    <span className="eyebrow">Напряжение бортсети</span>
+                    <p className="data text-xl text-accent">
+                      {data?.state?.voltage != null ? `${num(data.state.voltage, 1)} В` : data ? "—" : "…"}
+                    </p>
+                  </div>
+                  <div className="border-t border-line py-3">
+                    <span className="eyebrow">Зажигание</span>
+                    <p className="data text-xl text-ink">
+                      {data?.state?.ignition == null ? (data ? "—" : "…") : data.state.ignition ? "вкл" : "выкл"}
+                    </p>
+                  </div>
+                  <div className="border-t border-line py-3">
+                    <span className="eyebrow">Тек. скорость</span>
+                    <p className="data text-xl text-ink">
+                      {data?.state?.current_speed != null ? `${num(data.state.current_speed, 1)} км/ч` : data ? "—" : "…"}
+                    </p>
+                  </div>
+                  <div className="border-t border-line py-3">
+                    <span className="eyebrow">Тек. топливо</span>
+                    <p className="data text-xl text-ink">
+                      {data?.state?.current_fuel != null && data.state.current_fuel >= 0
+                        ? `${num(data.state.current_fuel, 1)} л` : data ? "—" : "…"}
+                    </p>
+                  </div>
+                </div>
+                {data?.state?.address && (
+                  <p className="data mt-2 text-xs text-ink-dim">{data.state.address}</p>
+                )}
+
+                <span className="eyebrow mt-6">Телеметрия · за сутки</span>
                 <div className="mt-3 grid grid-cols-2 gap-x-6">
                   {tele.map(([k, v]) => (
                     <div key={k} className="border-t border-line py-3">
@@ -120,8 +152,8 @@ export default function VehicleCard({
                   ))}
                 </div>
                 <p className="data mt-4 text-[0.7rem] leading-relaxed text-ink-faint">
-                  Напряжение бортсети, темп. топлива, водитель — недоступны через REST
-                  (та же граница доступа, что у качества данных).
+                  Темп. топлива и водитель недоступны через REST. Напряжение бортсети —
+                  из текущего состояния ТС (/vehicles/state).
                 </p>
               </div>
             </div>
