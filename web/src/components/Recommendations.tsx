@@ -13,6 +13,23 @@ const SEV_TONE: Record<string, string> = {
 
 const DEFAULT_SHOWN = 12;
 
+// Поле структурной рекомендации: подпись (mono) + значение.
+function Field({
+  label, value, full, tone = "ink",
+}: {
+  label: string; value: string; full?: boolean;
+  tone?: "ink" | "dim" | "warn" | "accent";
+}) {
+  const color = tone === "accent" ? "text-accent" : tone === "warn" ? "text-warn"
+    : tone === "dim" ? "text-ink-faint" : "text-ink";
+  return (
+    <div className={full ? "sm:col-span-2" : ""}>
+      <span className="eyebrow text-ink-faint">{label}</span>
+      <p className={`mt-0.5 text-xs leading-relaxed ${color}`}>{value}</p>
+    </div>
+  );
+}
+
 export default function Recommendations({
   recs, topOrgs = [], focusId, onOpenVehicle,
 }: {
@@ -131,30 +148,39 @@ export default function Recommendations({
                 </span>
               </button>
               {isOpen && (
-                <div className="grid grid-cols-1 gap-3 pb-4 pl-1 sm:grid-cols-[1fr_auto]">
-                  <p className="data text-xs leading-relaxed text-ink-dim">{r.text}</p>
-                  <div className="flex shrink-0 flex-col items-start gap-2 text-xs">
-                    <div className="flex flex-wrap gap-x-6 gap-y-1">
-                      <span className="data text-ink-faint">
-                        общ. дороги <span className="text-ink">{r.public_episodes}</span>
-                      </span>
-                      <span className="data text-ink-faint">
-                        техдороги <span className="text-ink">{r.tech_episodes}</span>
-                      </span>
-                      {r.worst_article && (
-                        <span className="data text-warn">{r.worst_article} КоАП</span>
-                      )}
-                    </div>
-                    {onOpenVehicle && (
-                      <button
-                        onClick={() => onOpenVehicle(r.terminal_id, r.name)}
-                        className="eyebrow border border-line-strong px-3 py-1 text-accent
-                                   transition-colors hover:border-accent hover:bg-accent hover:text-surface"
-                      >
-                        Трек на карте →
-                      </button>
+                <div className="pb-5 pl-1">
+                  <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                    <Field label="Нарушение"
+                      value={`${r.worst_severity} превышение · макс +${num(r.max_excess, 0)} км/ч`}
+                      tone={r.worst_severity === "грубое" ? "warn" : "ink"} />
+                    <Field label="Частота"
+                      value={`${num(r.episodes)} эпизодов · дороги общ. пользования ${r.public_episodes} · техдороги ${r.tech_episodes}`} />
+                    <Field label="Квалификация"
+                      value={r.worst_article
+                        ? `${r.worst_article} КоАП РК`
+                        : "технологические дороги — дисциплинарная мера по СТ КАП (без статьи)"}
+                      tone={r.worst_article ? "warn" : "dim"} />
+                    <Field label="Штраф / ставка"
+                      value={r.statutory_rate_kzt != null
+                        ? `${num(r.statutory_rate_kzt)} ₸ за случай`
+                        : "— не показывается до сверки КоАП на adilet / техдорога без ₸"}
+                      tone="dim" />
+                    {r.risk_note && (
+                      <Field label="Вероятный ущерб (оценочно)" value={r.risk_note} full tone="dim" />
                     )}
-                  </div>
+                    {(r.action || r.text) && (
+                      <Field label="Действие" value={r.action || r.text} full tone="accent" />
+                    )}
+                  </dl>
+                  {onOpenVehicle && (
+                    <button
+                      onClick={() => onOpenVehicle(r.terminal_id, r.name)}
+                      className="eyebrow mt-4 border border-line-strong px-3 py-1 text-accent
+                                 transition-colors hover:border-accent hover:bg-accent hover:text-surface"
+                    >
+                      Трек на карте →
+                    </button>
+                  )}
                 </div>
               )}
             </li>

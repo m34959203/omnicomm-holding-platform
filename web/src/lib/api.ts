@@ -61,6 +61,9 @@ export interface Recommendation {
   public_episodes: number;
   tech_episodes: number;
   worst_article: string | null;
+  statutory_rate_kzt?: number | null;
+  risk_note?: string;
+  action?: string;
   text: string;
 }
 
