@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout, as_completed
+from datetime import timedelta
 from typing import Callable, Optional
 
+from omnicomm_report import config
 from omnicomm_report.api_client import MAX_VEHICLES_PER_REPORT
+from omnicomm_report.models import ReportPeriod
 
 ProgressCb = Callable[[float, str], None]
 MakeClient = Callable[[], object]   # фабрика залогиненного клиента (по потоку)
@@ -26,23 +29,43 @@ def _chunks(items: list, size: int) -> list[list]:
     return [items[i:i + size] for i in range(0, len(items), size)]
 
 
+def _time_windows(period, window_days: Optional[int]) -> list:
+    """Нарезать период на окна по window_days суток (чанкинг по времени).
+
+    Без чанкинга (window_days falsy) — одно окно = весь период. Маленькие окна
+    делают каждый запрос быстрым (≤window_days × ≤50 ТС) → нет зависаний на
+    длинных периодах, прогресс двигается по каждому окну.
+    """
+    if not window_days or window_days <= 0:
+        return [period]
+    out, cur, step = [], period.start, timedelta(days=window_days)
+    while cur < period.end:
+        nxt = min(cur + step, period.end)
+        out.append(ReportPeriod(start=cur, end=nxt))
+        cur = nxt
+    return out or [period]
+
+
 def fetch_report_parallel(make_client: MakeClient, vehicle_ids: list[str], period,
                           *, call, label: str, workers: int = 6,
                           progress: Optional[ProgressCb] = None,
                           pct_from: float = 0.0, pct_to: float = 100.0,
                           best_effort: bool = False,
-                          max_seconds: Optional[float] = None) -> list[dict]:
+                          max_seconds: Optional[float] = None,
+                          window_days: Optional[int] = None) -> list[dict]:
     """Собрать любой батч-отчёт по всем ТС конкурентно. `payload` (items[]).
 
     `call(client, chunk, period) -> list` — конкретный вызов отчёта. Один поток =
-    один клиент (thread-local). `progress` показывает долю готовых батчей в
-    [pct_from, pct_to]. `best_effort=True` — упавший батч даёт пустой список.
-    `max_seconds` — wall-clock-кап: по истечении возвращаем что собрали, не
-    дожидаясь зависших батчей (для тяжёлых отчётов второго плана, чтобы не висеть).
+    один клиент (thread-local). РАБОЧАЯ ЕДИНИЦА = (батч ТС × окно времени): при
+    `window_days` длинный период режется на окна, каждое окно — отдельный быстрый
+    запрос, прогресс по каждому. `best_effort=True` — упавшая единица даёт [].
+    `max_seconds` — wall-clock-кап: по истечении отдаём собранное, зависшее бросаем.
     """
     chunks = _chunks(list(vehicle_ids), MAX_VEHICLES_PER_REPORT)
     if not chunks:
         return []
+    windows = _time_windows(period, window_days)
+    units = [(chunk, win) for chunk in chunks for win in windows]
 
     tls = threading.local()
 
@@ -53,9 +76,10 @@ def fetch_report_parallel(make_client: MakeClient, vehicle_ids: list[str], perio
             tls.client = c
         return c
 
-    def work(chunk: list[str]) -> list[dict]:
+    def work(unit) -> list[dict]:
+        chunk, win = unit
         try:
-            return call(client_for_thread(), chunk, period) or []
+            return call(client_for_thread(), chunk, win) or []
         except Exception:  # noqa: BLE001
             if best_effort:
                 return []
@@ -64,11 +88,11 @@ def fetch_report_parallel(make_client: MakeClient, vehicle_ids: list[str], perio
     payload: list[dict] = []
     done = 0
     lock = threading.Lock()
-    total = len(chunks)
+    total = len(units)
     span = max(pct_to - pct_from, 0.0)
 
     ex = ThreadPoolExecutor(max_workers=max(1, min(workers, total)))
-    futures = [ex.submit(work, c) for c in chunks]
+    futures = [ex.submit(work, u) for u in units]
     try:
         for fut in as_completed(futures, timeout=max_seconds):
             res = fut.result()
@@ -77,13 +101,13 @@ def fetch_report_parallel(make_client: MakeClient, vehicle_ids: list[str], perio
                 done += 1
                 if progress:
                     progress(pct_from + span * done / total,
-                             f"{label}: {done}/{total} групп ТС")
+                             f"{label}: {done}/{total} запросов")
     except FTimeout:
-        # кап исчерпан — отдаём частичный результат, зависшие батчи бросаем
+        # кап исчерпан — отдаём частичный результат, зависшие единицы бросаем
         if progress:
             progress(pct_to, f"{label}: {done}/{total} (по таймауту, частично)")
     finally:
-        # не ждём зависшие батчи (они дойдут в фоне и осядут вхолостую)
+        # не ждём зависшие единицы (они дойдут в фоне и осядут вхолостую)
         ex.shutdown(wait=False, cancel_futures=True)
     return payload
 

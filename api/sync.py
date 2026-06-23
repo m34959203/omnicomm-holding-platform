@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from omnicomm_report import (
-    classify, data_loader, demo_data, economics, geozones, org as org_mod,
+    classify, config, data_loader, demo_data, economics, geozones, org as org_mod,
     recommendations, rollup, speeding, validator)
 from omnicomm_report.models import ReportPeriod
 
@@ -27,6 +27,21 @@ DEFAULT_REGISTRY = "data/org_registry.db"
 
 def _period_key(period: ReportPeriod) -> str:
     return f"{period.start:%Y-%m-%d}_{period.end:%Y-%m-%d}"
+
+
+def _dedup_records(records: list) -> list:
+    """Оставить одну строку на (ТС, сутки) — защита от задвоения граничных дней
+    при оконном чанкинге (агрегация суммирует суточные строки)."""
+    seen: set = set()
+    out = []
+    for r in records or []:
+        cr = r.get("consolidatedReport") if isinstance(r.get("consolidatedReport"), dict) else r
+        key = (cr.get("vehicleId") or cr.get("id"), cr.get("date"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
 
 
 def _new_live_client():
@@ -85,19 +100,27 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         progress(4, "Построение иерархии организаций из дерева КАП")
         tree, vehicle_org = org_mod.build_from_omnicomm_tree(client.get_vehicle_tree())
         ids = list(vehicle_org.keys())
-        progress(5, f"Старт забора телеметрии: {len(ids)} ТС")
-        # best_effort: флапающий/таймаутящий батч Omnicomm → пропуск, а не падение
+        # Бюджет таймаута масштабируем под длину периода — чтобы месяц успел
+        # собраться (чанкинг по REPORT_WINDOW_DAYS делает каждый запрос быстрым,
+        # прогресс двигается по каждому окну).
+        period_days = max(1.0, (end_ts - start_ts) / 86400.0)
+        cons_budget = min(480 + period_days * 80, 2700)   # 2д≈640с … 30д≈2700с (потолок 45 мин)
+        progress(5, f"Старт забора телеметрии: {len(ids)} ТС, период {period_days:.0f} сут")
+        # best_effort: флапающий/таймаутящий запрос Omnicomm → пропуск, а не падение
         # всего синка (копия КАП нестабильна); пробелы добёрет следующий cron-синк.
         payload = fetch.fetch_report_parallel(
             _new_live_client, ids, period,
             call=lambda c, ch, p: c.get_consolidated_report(ch, p),
             label="Загрузка телеметрии", workers=workers, progress=progress,
-            pct_from=5, pct_to=68, best_effort=True, max_seconds=480)
+            pct_from=5, pct_to=68, best_effort=True, max_seconds=cons_budget,
+            window_days=config.REPORT_WINDOW_DAYS)
         tree_vehicles = client.list_vehicles() or []
         name_map = {str(v.get("terminal_id") or v.get("id") or v.get("uuid")): v.get("name")
                     for v in tree_vehicles
                     if (v.get("terminal_id") or v.get("id") or v.get("uuid")) and v.get("name")}
-        records = data_loader._extract_records(payload)
+        # Дедуп по (ТС, сутки): окна чанкинга могли захватить граничный день дважды,
+        # а агрегация СУММИРУЕТ суточные строки → иначе двойной счёт топлива/пробега.
+        records = _dedup_records(data_loader._extract_records(payload))
         vehicles = validator.validate(
             data_loader._aggregate_consolidated(records, name_map))
         progress(70, "Агрегация телеметрии")
@@ -117,11 +140,13 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         # с wall-clock-капом — если Omnicomm тормозит, синк не виснет; рекомендации
         # будут по тому, что успели собрать (полнее добёрет следующий cron-синк).
         try:
+            geo_budget = min(120 + period_days * 20, 600)   # второй план: легче бюджет, потолок 10 мин
             visits = fetch.fetch_report_parallel(
                 _new_live_client, ids, period,
                 call=lambda c, ch, p: c.get_geozones_report(ch, p),
                 label="Анализ геозон", workers=workers, progress=progress,
-                pct_from=72, pct_to=79, best_effort=True, max_seconds=90)
+                pct_from=72, pct_to=79, best_effort=True, max_seconds=geo_budget,
+                window_days=config.REPORT_WINDOW_DAYS)
             violations = speeding.detect_from_visits(visits, seed=seed)
         except Exception:  # noqa: BLE001 — детекция не валит снапшот
             violations = {}
