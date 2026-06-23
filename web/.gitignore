@@ -42,3 +42,4 @@ next-env.d.ts
 
 # бинарь-выгрузки для скачивания (генерируются, не в git)
 /public/*.docx
+/public/*.pdf

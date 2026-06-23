@@ -39,3 +39,7 @@ logs/
 docs/*.docx
 .deps
 .venv
+
+# презентация: бинарь-артефакты (генерируются), в git только deck.html
+docs/presentation/img/
+docs/*.pdf

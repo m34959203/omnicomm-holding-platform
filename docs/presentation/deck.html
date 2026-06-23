@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Omnicomm Holding Platform — презентация</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#0c0c0d; --surface:#151517; --surface2:#1b1b1e;
+    --ink:#ece8df; --ink-dim:#93908a; --ink-faint:#5d5b56;
+    --line:rgba(236,232,223,.10); --line-strong:rgba(236,232,223,.20);
+    --accent:#ccfa4e; --danger:#ff5d52; --warn:#f0a338;
+    --serif:'Spectral',Georgia,serif; --sans:'IBM Plex Sans',system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  @page{ size:1280px 720px; margin:0 }
+  html,body{background:#000}
+  body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .slide{
+    position:relative; width:1280px; height:720px; overflow:hidden;
+    background:var(--paper); padding:64px 72px;
+    page-break-after:always; display:flex; flex-direction:column;
+  }
+  .slide::after{ /* зерно/виньетка */
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(120% 90% at 100% 0%, rgba(204,250,78,.05), transparent 55%);
+  }
+  .eyebrow{font-family:var(--mono);font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint)}
+  h1{font-family:var(--serif);font-weight:500;line-height:1.02;letter-spacing:-.015em}
+  h2{font-family:var(--serif);font-weight:500;font-size:46px;line-height:1.04;letter-spacing:-.015em;margin-top:10px}
+  .lead{font-size:19px;line-height:1.55;color:var(--ink-dim);max-width:62ch}
+  .mono{font-family:var(--mono)}
+  .accent{color:var(--accent)}
+  .warn{color:var(--warn)} .danger{color:var(--danger)}
+  .rule{height:1px;background:var(--line-strong);margin:18px 0}
+  .foot{position:absolute;left:72px;right:72px;bottom:30px;display:flex;justify-content:space-between;
+        font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .grid{display:grid;gap:18px}
+  .head{display:flex;align-items:baseline;gap:18px}
+  .num{font-family:var(--serif);font-size:15px;color:var(--ink-faint)}
+
+  /* буллеты */
+  ul.b{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:8px}
+  ul.b li{position:relative;padding-left:22px;font-size:17px;line-height:1.5;color:var(--ink)}
+  ul.b li::before{content:"";position:absolute;left:0;top:11px;width:7px;height:7px;background:var(--accent)}
+  ul.b li b{color:var(--ink)} ul.b li span{color:var(--ink-dim)}
+
+  /* карточки-метрики */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-strong);margin-top:6px}
+  .stat{background:var(--paper);padding:18px 16px}
+  .stat .v{font-family:var(--mono);font-size:30px;color:var(--ink)}
+  .stat .v.acc{color:var(--accent)}
+  .stat .l{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-top:6px}
+
+  /* слайд со скриншотом */
+  .shot{flex:1;margin-top:18px;border:1px solid var(--line-strong);overflow:hidden;background:var(--surface);
+        display:flex;align-items:center;justify-content:center}
+  .shot img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+  .split{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;flex:1;margin-top:18px}
+  .split .shot{margin-top:0}
+  .cap{font-size:15.5px;line-height:1.5;color:var(--ink-dim)}
+  .cap b{color:var(--ink)}
+
+  /* обложка */
+  .cover{justify-content:center}
+  .cover .brandmark{font-family:var(--mono);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--ink-faint)}
+  .cover h1{font-size:84px;margin-top:18px}
+  .cover .sub{font-family:var(--serif);font-size:30px;color:var(--ink-dim);margin-top:10px}
+  .cover .tagline{margin-top:26px;font-family:var(--mono);font-size:14px;letter-spacing:.06em;color:var(--accent)}
+  .meta{display:flex;gap:48px;margin-top:42px}
+  .meta div .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .meta div .val{font-size:16px;margin-top:4px}
+
+  /* таймлайн дорожной карты */
+  .phases{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-strong);flex:1;margin-top:20px}
+  .ph{background:var(--paper);padding:22px 18px;display:flex;flex-direction:column}
+  .ph .tag{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+  .ph h3{font-family:var(--serif);font-weight:500;font-size:22px;margin:8px 0 4px}
+  .ph .st{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-bottom:12px}
+  .ph ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .ph ul li{font-size:13.5px;line-height:1.4;color:var(--ink-dim);padding-left:15px;position:relative}
+  .ph ul li::before{content:"";position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%}
+  .ph.done ul li::before{background:var(--accent)} .ph.now ul li::before{background:var(--warn)}
+  .ph.next ul li::before{background:var(--ink-faint)} .ph.later ul li::before{background:var(--ink-faint)}
+  .ph .tag.done{color:var(--accent)} .ph .tag.now{color:var(--warn)} .ph .tag.next,.ph .tag.later{color:var(--ink-dim)}
+
+  table.req{width:100%;border-collapse:collapse;margin-top:14px}
+  table.req td,table.req th{border-top:1px solid var(--line);padding:12px 10px;text-align:left;font-size:15px;vertical-align:top}
+  table.req th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+  table.req td.who{font-family:var(--mono);color:var(--accent);white-space:nowrap;width:160px}
+</style>
+</head>
+<body>
+
+<!-- 1 · ОБЛОЖКА -->
+<section class="slide cover">
+  <div class="brandmark">TechnoKod · аналитика автопарка поверх Omnicomm</div>
+  <h1>Автопарк <span class="accent">холдинга</span></h1>
+  <div class="sub">Аналитическая платформа на базе телематики Omnicomm</div>
+  <div class="tagline">Кросс-ДЗО аналитика · экономика в ₸ · скоростной режим на букве СТ КАП</div>
+  <div class="meta">
+    <div><div class="k">Заказчик</div><div class="val">АО НАК «Казатомпром»</div></div>
+    <div><div class="k">Контур</div><div class="val">projectkap · ~1 962 ТС · 73 узла</div></div>
+    <div><div class="k">Статус</div><div class="val accent">в проде · omnicomm.technokod.kz</div></div>
+    <div><div class="k">Дата</div><div class="val">23 июня 2026</div></div>
+  </div>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>01</span></div>
+</section>
+
+<!-- 2 · ПРОБЛЕМА -->
+<section class="slide">
+  <div class="head"><span class="num">02</span><span class="eyebrow">Проблема</span></div>
+  <h2>Power BI отвечает на один вопрос из десяти</h2>
+  <div class="rule"></div>
+  <ul class="b" style="max-width:none">
+    <li><b>Только скорость.</b> <span>Витрина «Мониторинг скоростного режима» — 4 страницы; нет топливной экономики (₸), КПД спецтехники, контроля ТО и качества данных.</span></li>
+    <li><b>Дорогая ручная доставка.</b> <span>Посемест­ные лицензии ≈ 8 500 ₸/мес × получатель + ручная выгрузка каждому ДЗО раз в неделю.</span></li>
+    <li><b>Модель не масштабируется.</b> <span>«Колонка на каждое ДЗО» ломается при добавлении ДЗО / под-ДЗО / подрядчика.</span></li>
+    <li><b>Рекомендации — «ИИ-вода».</b> <span>Общий план без статьи закона, суммы штрафа и конкретного действия.</span></li>
+  </ul>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>02</span></div>
+</section>
+
+<!-- 3 · РЕШЕНИЕ -->
+<section class="slide">
+  <div class="head"><span class="num">03</span><span class="eyebrow">Решение</span></div>
+  <h2>Единый «мозг автопарка» поверх Omnicomm</h2>
+  <div class="rule"></div>
+  <p class="lead">Платформа собирает телеметрию всех ДЗО через API, нормализует в иерархию организаций
+    (Холдинг → ДЗО → под-ДЗО → подрядчик), переводит километры и литры в деньги и раздаёт каждому ДЗО
+    свой дашборд — без посемест­ных лицензий, с доступом строго к своей технике.</p>
+  <div class="stats">
+    <div class="stat"><div class="v acc">₸</div><div class="l">Экономика топлива</div></div>
+    <div class="stat"><div class="v acc">СТ&nbsp;КАП</div><div class="l">Скорость × геозона × тип ТС</div></div>
+    <div class="stat"><div class="v acc">Health</div><div class="l">Качество данных + контроль ТО</div></div>
+    <div class="stat"><div class="v acc">RU/KK</div><div class="l">Excel · мобильный · без лицензий</div></div>
+  </div>
+  <p class="cap" style="margin-top:22px">Платформа <b>не переизобретает</b> расчёты Omnicomm и <b>не лезет в видео-железо</b> —
+    её ценность это слой, которого нет ни у Omnicomm, ни у Power BI: кросс-ДЗО агрегация + экономика + рекомендации на букве закона.</p>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>03</span></div>
+</section>
+
+<!-- 4 · ДАШБОРД РУКОВОДИТЕЛЯ -->
+<section class="slide">
+  <div class="head"><span class="num">04</span><span class="eyebrow">Дашборд руководителя</span>
+    <span class="kicker" style="margin-left:auto">здоровье холдинга за 5 секунд</span></div>
+  <h2 style="font-size:38px">Сводка → внимание → детали по запросу</h2>
+  <div class="shot"><img src="img/overview.png" alt="обзор"></div>
+  <p class="cap" style="margin-top:14px"><b>Scope-rail</b> (дерево 73 узлов + поиск, фильтрует всё) · <b>6 health-KPI</b> ·
+    лента <b>«Что требует внимания»</b> кликабельна к конкретной проблеме · обзор по доменам.</p>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>04</span></div>
+</section>
+
+<!-- 5 · ДЕНЬГИ -->
+<section class="slide">
+  <div class="head"><span class="num">05</span><span class="eyebrow">Деньги</span>
+    <span class="kicker" style="margin-left:auto">км и литры → ₸</span></div>
+  <h2 style="font-size:38px">Где уходят деньги и сколько можно вернуть</h2>
+  <div class="shot"><img src="img/money.png" alt="деньги"></div>
+  <p class="cap" style="margin-top:14px">Адресуемые потери по корзинам, стоимость бездействия, первоочередные ТС.
+    <b>Вентиль доверия:</b> АЗС, ёмкости, ФЭС и генераторы отфильтрованы — в рейтинге только реальные машины.</p>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>05</span></div>
+</section>
+
+<!-- 6 · СКОРОСТНОЙ РЕЖИМ -->
+<section class="slide">
+  <div class="head"><span class="num">06</span><span class="eyebrow">Скоростной режим · СТ КАП</span>
+    <span class="kicker" style="margin-left:auto">дифференциатор</span></div>
+  <h2 style="font-size:38px">Превышения по геозоне × типу ТС</h2>
+  <div class="shot"><img src="img/speed.png" alt="скорость"></div>
+  <p class="cap" style="margin-top:14px">Распределение по тяжести, топ-организаций по эпизодам, список нарушителей.
+    Лимит = <b>min(ПДД, геозона, внутренний стандарт СТ КАП)</b> — чего Power BI и Omnicomm толком не умеют.</p>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>06</span></div>
+</section>
+
+<!-- 7 · ГЕОЗОНЫ -->
+<section class="slide">
+  <div class="head"><span class="num">07</span><span class="eyebrow">Геозоны</span>
+    <span class="kicker" style="margin-left:auto">~199 зон СТ КАП</span></div>
+  <h2 style="font-size:38px">Интерактивная карта зон и лимитов</h2>
+  <div class="shot"><img src="img/geo.png" alt="геозоны"></div>
+  <p class="cap" style="margin-top:14px">Яндекс.Карты (гибрид: спутник + подписи), переключатель Гибрид/Схема,
+    клик по зоне → название и лимит. Площадки и техдороги с реальными ограничениями.</p>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>07</span></div>
+</section>
+
+<!-- 8 · КАЧЕСТВО ДАННЫХ -->
+<section class="slide">
+  <div class="split">
+    <div style="display:flex;flex-direction:column">
+      <div class="head"><span class="num">08</span><span class="eyebrow">Качество данных</span></div>
+      <h2 style="font-size:34px">Доверие к цифрам — отдельный слой</h2>
+      <div class="rule"></div>
+      <ul class="b">
+        <li><b>Светофор терминалов.</b> <span>Online / устарели / офлайн по давности данных — стек-бар с долями.</span></li>
+        <li><b>Пропавшие блоки.</b> <span>ТС без топлива/CAN/оборотов помечаются → не врут в KPI.</span></li>
+        <li><b>Честная граница.</b> <span>Сенсор-уровень (напряжение/Журнал) недоступен по REST — так и написано, без overclaim.</span></li>
+      </ul>
+    </div>
+    <div class="shot"><img src="img/quality.png" alt="качество данных" style="object-position:top center"></div>
+  </div>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>08</span></div>
+</section>
+
+<!-- 9 · ДОСТАВКА -->
+<section class="slide">
+  <div class="split">
+    <div style="display:flex;flex-direction:column">
+      <div class="head"><span class="num">09</span><span class="eyebrow">Доставка</span></div>
+      <h2 style="font-size:34px">Каждому ДЗО — своё, без лицензий</h2>
+      <div class="rule"></div>
+      <ul class="b">
+        <li><b>Row-level доступ.</b> <span>Руководство видит весь КАП, ДЗО — только своё поддерево; соседи не видят друг друга.</span></li>
+        <li><b>Excel одной кнопкой.</b> <span>Текущий срез — 6 листов из снапшота.</span></li>
+        <li><b>Два языка RU / KK</b> <span>и мобильная версия.</span></li>
+        <li><b>Выбор снимка + шаблоны периода.</b> <span>Сутки / 2 суток / неделя — один клик.</span></li>
+      </ul>
+    </div>
+    <div class="shot" style="background:var(--paper)"><img src="img/mobile.png" alt="мобильный" style="object-fit:contain"></div>
+  </div>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>09</span></div>
+</section>
+
+<!-- 10 · АРХИТЕКТУРА -->
+<section class="slide">
+  <div class="head"><span class="num">10</span><span class="eyebrow">Архитектура</span>
+    <span class="kicker" style="margin-left:auto">быстро и масштабируемо</span></div>
+  <h2>Python-движки → FastAPI → Next.js</h2>
+  <div class="rule"></div>
+  <ul class="b" style="max-width:none">
+    <li><b>Python-движки.</b> <span>Нормализация, экономика, скоростной режим СТ КАП, роллапы по иерархии — отлаженное ядро.</span></li>
+    <li><b>FastAPI-мост + кэш-снапшот.</b> <span>Синхронизация с Omnicomm идёт фоном; чтения дашборда отдаются из кэша мгновенно и не дёргают Omnicomm.</span></li>
+    <li><b>Next.js-интерфейс.</b> <span>Дашборд ДЗО, инлайн-SVG графики, карта геозон, рекомендации; RU/KK; статический экспорт за реверс-прокси.</span></li>
+    <li><b>Устойчивость.</b> <span>Синк изолирован: его сбой не роняет сервер; данные переживают перезапуск. Вся инфраструктура — в РК.</span></li>
+  </ul>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>10</span></div>
+</section>
+
+<!-- 11 · ЧТО ГОТОВО -->
+<section class="slide">
+  <div class="head"><span class="num">11</span><span class="eyebrow">Статус</span>
+    <span class="kicker" style="margin-left:auto">в проде на 23.06.2026</span></div>
+  <h2 style="font-size:38px">Что уже работает на боевых данных КАП</h2>
+  <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat"><div class="v">1 962</div><div class="l">ТС в контуре</div></div>
+    <div class="stat"><div class="v">73</div><div class="l">узла оргструктуры</div></div>
+    <div class="stat"><div class="v">~199</div><div class="l">геозон СТ КАП</div></div>
+    <div class="stat"><div class="v acc">5</div><div class="l">доменов на дашборде</div></div>
+  </div>
+  <ul class="b" style="max-width:none;margin-top:22px">
+    <li><b>Executive-дашборд</b> <span>со scope-rail, health-полосой, лентой внимания и домен-табами.</span></li>
+    <li><b>Деньги · Скоростной режим СТ КАП · Геозоны · Качество данных · Контроль ТО</b> <span>— все пять интегрированы.</span></li>
+    <li><b>Excel-экспорт, RU/KK, мобильный вид, выбор снимка, графики, вентиль доверия к данным</b> <span>— готово.</span></li>
+  </ul>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>11</span></div>
+</section>
+
+<!-- 12 · ДОРОЖНАЯ КАРТА -->
+<section class="slide">
+  <div class="head"><span class="num">12</span><span class="eyebrow">Дорожная карта</span></div>
+  <h2 style="font-size:38px">От доставки к ядру ценности</h2>
+  <div class="phases">
+    <div class="ph done">
+      <div class="tag done">Фаза 0–1 · готово</div>
+      <h3>Фундамент + MVP</h3>
+      <div class="st">✅ в проде</div>
+      <ul>
+        <li>Иерархия + роллапы + дашборды ДЗО</li>
+        <li>Экономика топлива → ₸</li>
+        <li>Sensor Health (терминал)</li>
+        <li>Excel · RU/KK · мобильный</li>
+      </ul>
+    </div>
+    <div class="ph now">
+      <div class="tag now">Фаза 2 · сейчас</div>
+      <h3>Скоростной режим</h3>
+      <div class="st">🟡 ядро ценности</div>
+      <ul>
+        <li>Seed-датасет геозон (verified)</li>
+        <li>Детекция по треку × geozone_limit</li>
+        <li>Рекомендации на букве КоАП РК</li>
+        <li>Сверка статей на adilet</li>
+      </ul>
+    </div>
+    <div class="ph next">
+      <div class="tag next">Фаза 3 · далее</div>
+      <h3>Операционные модули</h3>
+      <div class="st">⛔ план</div>
+      <ul>
+        <li>Контроль ТО: накопление + подтверждение</li>
+        <li>Экономика: измеримо vs оценка</li>
+        <li>Реестр датчиков</li>
+        <li>ADR-лимиты по типу груза</li>
+      </ul>
+    </div>
+    <div class="ph later">
+      <div class="tag later">Фаза 4 · прод</div>
+      <h3>Масштаб и онбординг</h3>
+      <div class="st">⛔ план</div>
+      <ul>
+        <li>Онбординг ДЗО + тест изоляции</li>
+        <li>Крипто-хранение паролей</li>
+        <li>Postgres при росте</li>
+        <li>КАП Business Case</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>12</span></div>
+</section>
+
+<!-- 13 · СОГЛАСОВАНИЯ -->
+<section class="slide">
+  <div class="head"><span class="num">13</span><span class="eyebrow">Что нужно от заказчика</span></div>
+  <h2 style="font-size:38px">Параллельно разработке</h2>
+  <table class="req">
+    <tr><th>Сторона</th><th>Что нужно</th><th>Разблокирует</th></tr>
+    <tr><td class="who">Дима</td><td>Плательщик за аналитику, модель цены на 2000 ТС, формат отчёта наверх</td><td class="mono" style="color:var(--ink-dim)">бизнес-рамка</td></tr>
+    <tr><td class="who">Антон</td><td>Таксономия ТС, расширенные права / события Omnicomm (учётка с events)</td><td class="mono" style="color:var(--ink-dim)">geozone_limit · сенсор-полнота</td></tr>
+    <tr><td class="who">Данияр</td><td>Список опасных грузов (ADR)</td><td class="mono" style="color:var(--ink-dim)">спец-лимиты ADR</td></tr>
+    <tr><td class="who">Юр. / внутр.</td><td>Сверка статей КоАП на 2026 (adilet), основание ПДн, геолокация хранилища</td><td class="mono" style="color:var(--ink-dim)">денежные рекомендации · ПДн</td></tr>
+  </table>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>13</span></div>
+</section>
+
+<!-- 14 · ЗАКРЫТИЕ -->
+<section class="slide cover">
+  <div class="brandmark">TechnoKod</div>
+  <h1 style="font-size:64px">Дешевле. Масштабируемо.<br><span class="accent">Богаче.</span></h1>
+  <p class="lead" style="margin-top:22px;max-width:60ch">Без посемест­ных лицензий · иерархия вместо «колонки на ДЗО» ·
+    деньги, закон, ТО и качество данных там, где раньше была только скорость. Данные — в РК.</p>
+  <div class="tagline" style="margin-top:30px">omnicomm.technokod.kz · аналитика автопарка как услуга поверх Omnicomm</div>
+  <div class="foot"><span>Omnicomm Holding Platform</span><span>14</span></div>
+</section>
+
+</body>
+</html>
