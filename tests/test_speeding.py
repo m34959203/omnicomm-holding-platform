@@ -44,12 +44,20 @@ def test_tech_road_no_koap_only_disciplinary():
     assert v.st_kap_severity == "грубое"      # excess 20 ≥ 6
 
 
-def test_public_road_koap_article_no_fine_until_verified():
-    # лимит 60, скорость 85 → excess 25 → ст.592 ч.2 (20–40)
+def test_public_road_koap_fine_hidden_when_unverified(monkeypatch):
+    # гейт R-INV-8: при KOAP_VERIFIED=False сумма штрафа скрыта (даже на public).
+    monkeypatch.setattr(config, "KOAP_VERIFIED", False)
     v = sp.detect_speeding(_track([85, 85, 85]), PUBLIC)[0]
     assert v.public_road is True
     assert v.koap_article == "ст.592 ч.2"
-    assert v.fine_kzt is None                 # KOAP_VERIFIED=False (R-INV-8)
+    assert v.fine_kzt is None
+
+
+def test_public_road_koap_fine_shown_when_verified():
+    # после сверки на adilet (KOAP_VERIFIED=True по умолчанию) — сумма показывается.
+    v = sp.detect_speeding(_track([85, 85, 85]), PUBLIC)[0]
+    assert v.koap_article == "ст.592 ч.2"
+    assert v.fine_kzt == 10 * config.MRP_KZT
 
 
 def test_koap_fine_when_verified(monkeypatch):

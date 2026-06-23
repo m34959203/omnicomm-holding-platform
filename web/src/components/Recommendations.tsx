@@ -162,9 +162,9 @@ export default function Recommendations({
                       tone={r.worst_article ? "warn" : "dim"} />
                     <Field label="Штраф / ставка"
                       value={r.statutory_rate_kzt != null
-                        ? `${num(r.statutory_rate_kzt)} ₸ за случай`
-                        : "— не показывается до сверки КоАП на adilet / техдорога без ₸"}
-                      tone="dim" />
+                        ? `${num(r.statutory_rate_kzt)} ₸ за случай · ст. 592 КоАП РК`
+                        : "технологические дороги — дисциплинарная мера, без ₸"}
+                      tone={r.statutory_rate_kzt != null ? "warn" : "dim"} />
                     {r.risk_note && (
                       <Field label="Вероятный ущерб (оценочно)" value={r.risk_note} full tone="dim" />
                     )}
