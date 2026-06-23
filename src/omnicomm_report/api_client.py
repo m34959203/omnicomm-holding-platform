@@ -113,6 +113,11 @@ class OmnicommClient:
         self._refresh_token: Optional[str] = None
         self._access_exp: Optional[int] = None      # UNIX UTC срока access-токена
         self._last_request_at: float = 0.0           # для паузы SLEEP_TIME между запросами
+        # Общий на процесс лимитер ЗА АККАУНТ — все клиенты под одним логином делят
+        # бюджет 180/мин (защита сервера Omnicomm при параллельном синке).
+        from . import rate_limit
+        self._limiter = rate_limit.get_limiter(
+            getattr(settings, "login", "") or "", config.MAX_REQUESTS_PER_MINUTE)
 
     # --- URL и пауза ---------------------------------------------------------
 
@@ -121,7 +126,9 @@ class OmnicommClient:
         return self._settings.base_url.rstrip("/") + config.ENDPOINTS[endpoint_key]
 
     def _throttle(self) -> None:
-        """Выдержать паузу SLEEP_TIME между запросами — самоограничение по лимитам."""
+        """Самоограничение по лимитам Omnicomm: глобальный token-bucket на аккаунт
+        (≤MAX_REQUESTS_PER_MINUTE по всем потокам) + пер-клиентный пол SLEEP_TIME."""
+        self._limiter.acquire()
         elapsed = time.monotonic() - self._last_request_at
         if elapsed < config.SLEEP_TIME:
             time.sleep(config.SLEEP_TIME - elapsed)

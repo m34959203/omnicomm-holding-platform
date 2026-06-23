@@ -176,7 +176,9 @@ def maintenance(period_key: Optional[str] = Query(None)) -> dict:
 
 
 def _veh_window(start_ts, end_ts):
-    end = end_ts or int(time.time())
+    # Дефолтный конец окна квантуем в 5-мин бакет — иначе int(time.time())
+    # на каждый вызов даёт новый ключ и TTL-кэш карточки не попадает.
+    end = end_ts or ((int(time.time()) // 300) * 300)
     return (start_ts or (end - 24 * 3600)), end
 
 

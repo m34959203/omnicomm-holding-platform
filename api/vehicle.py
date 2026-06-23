@@ -9,14 +9,42 @@
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from omnicomm_report import data_loader
 from omnicomm_report.models import ReportPeriod
 
 _client = None
 _lock = threading.Lock()
+
+# TTL-кэш карточки ТС: карточка — единственное место, где клик пользователя =
+# живой запрос в Omnicomm. Кэшируем результат на ТС×период, чтобы повторные/
+# параллельные открытия не пуляли в московский сервер (как весь дашборд —
+# «пуляем раз, отдаём многим»). Трек/состояние — короткий TTL, телеметрия (дневной
+# агрегат) — длиннее.
+TRACK_TTL_SEC = 300       # 5 мин
+TELEMETRY_TTL_SEC = 900   # 15 мин
+_CACHE_MAX = 600          # потолок записей (по ТС×период), защита памяти
+_card_cache: dict[str, tuple[float, dict]] = {}
+_card_lock = threading.Lock()
+
+
+def _cached(key: str, ttl: int, build: Callable[[], dict]) -> dict:
+    """Вернуть из кэша, если свежо (< ttl), иначе собрать и положить."""
+    now = time.monotonic()
+    with _card_lock:
+        hit = _card_cache.get(key)
+        if hit is not None and now - hit[0] < ttl:
+            return hit[1]
+    value = build()  # медленный live-вызов — вне лока
+    with _card_lock:
+        _card_cache[key] = (now, value)
+        if len(_card_cache) > _CACHE_MAX:  # чистка протухших
+            for k in [k for k, (t, _) in _card_cache.items() if now - t >= ttl]:
+                _card_cache.pop(k, None)
+    return value
 
 
 def _get_client():
@@ -50,6 +78,18 @@ def _period(start_ts: int, end_ts: int) -> ReportPeriod:
 
 
 def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+    """Карточка-трек с TTL-кэшем (повторные открытия не пуляют в Omnicomm)."""
+    return _cached(f"track:{terminal_id}:{start_ts}:{end_ts}", TRACK_TTL_SEC,
+                   lambda: _track_detail_live(terminal_id, start_ts, end_ts))
+
+
+def telemetry(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+    """Телеметрия с TTL-кэшем."""
+    return _cached(f"tele:{terminal_id}:{start_ts}:{end_ts}", TELEMETRY_TTL_SEC,
+                   lambda: _telemetry_live(terminal_id, start_ts, end_ts))
+
+
+def _track_detail_live(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     """Трек ТС: полилиния + маркеры + ряд скорости. БЫСТРО (~1-2с) — без сводного.
 
     Имя ТС не дёргаем из дерева (~2000-элементный запрос) — фронт знает имя сам.
@@ -93,7 +133,7 @@ def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     }
 
 
-def telemetry(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+def _telemetry_live(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     """Телеметрия ТС из сводного отчёта (МЕДЛЕННО ~16с) — грузится лениво."""
     client = _get_client()
     out: dict = {}
