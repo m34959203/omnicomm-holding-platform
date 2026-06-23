@@ -107,7 +107,8 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         except Exception:  # noqa: BLE001 — светофор не валит синк
             activity = []
         sensor_section = health.build_sensor_health(
-            activity, records, tree_vehicles, now=end_ts)
+            activity, records, tree_vehicles, now=end_ts,
+            fetch_state=client.get_vehicle_state)   # ур.1.5 — напряжение подозрительных
         maint_section = health.build_maintenance(records, vehicles)
         # Карта геозон — лёгкий вызов (геометрия из list_geozones).
         raw_geozones = client.list_geozones()

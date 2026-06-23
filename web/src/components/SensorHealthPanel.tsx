@@ -28,15 +28,28 @@ export default function SensorHealthPanel({ sh }: { sh: SensorHealth }) {
         </span>
         {sh.missing_capabilities.length > 0 && (
           <ul className="mt-2">
-            {sh.missing_capabilities.slice(0, 30).map((m) => (
-              <li
-                key={m.terminal_id}
-                className="grid grid-cols-[1fr_auto] items-center gap-4 border-t border-line py-2"
-              >
-                <span className="truncate text-sm text-ink">{m.name || m.terminal_id}</span>
-                <span className="data text-xs text-warn">{m.missing.join(" · ")}</span>
-              </li>
-            ))}
+            {sh.missing_capabilities.slice(0, 30).map((m) => {
+              const tone = m.power === "ok" ? "text-danger"        // питание есть → реальный сбой датчика
+                : m.power === "low" ? "text-warn"
+                  : m.power === "critical" ? "text-ink-faint"      // обесточен → не сбой датчика
+                    : "text-ink-faint";
+              return (
+                <li
+                  key={m.terminal_id}
+                  className="grid grid-cols-[1fr_auto] items-baseline gap-4 border-t border-line py-2"
+                >
+                  <div className="min-w-0">
+                    <span className="block truncate text-sm text-ink">{m.name || m.terminal_id}</span>
+                    {m.power_verdict && (
+                      <span className={`data text-[0.7rem] ${tone}`}>
+                        {m.voltage != null ? `${m.voltage} В · ` : ""}{m.power_verdict}
+                      </span>
+                    )}
+                  </div>
+                  <span className="data shrink-0 text-xs text-warn">{m.missing.join(" · ")}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

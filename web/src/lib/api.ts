@@ -85,10 +85,19 @@ export interface TerminalHealth {
   age_seconds: number | null;
   receive_data: boolean | null;
 }
+export interface MissingCap {
+  terminal_id: string;
+  name: string | null;
+  missing: string[];
+  voltage?: number | null;
+  power?: "ok" | "low" | "critical" | "unknown";
+  power_verdict?: string;
+}
 export interface SensorHealth {
   terminals: TerminalHealth[];
   counts: Record<string, number>;
-  missing_capabilities: { terminal_id: string; name: string | null; missing: string[] }[];
+  missing_capabilities: MissingCap[];
+  power?: Record<string, number>;
   level: string;
 }
 

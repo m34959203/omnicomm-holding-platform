@@ -32,3 +32,14 @@ def test_empty_name_fail_open():
     # без имени не отсекаем — лучше лишний ТС, чем потерянная машина
     assert is_transport(None) is True
     assert is_transport("") is True
+
+
+def test_power_classification():
+    from omnicomm_report.sensor_health import classify_power, PowerStatus
+    assert classify_power(13.8) == PowerStatus.OK        # 12В норма
+    assert classify_power(10.9) == PowerStatus.LOW       # 12В просадка
+    assert classify_power(27.6) == PowerStatus.OK        # 24В норма
+    assert classify_power(22.0) == PowerStatus.LOW       # 24В просадка
+    assert classify_power(2.0) == PowerStatus.CRITICAL   # обесточен
+    assert classify_power(None) == PowerStatus.UNKNOWN
+    assert classify_power(0) == PowerStatus.UNKNOWN

@@ -28,7 +28,9 @@ def test_sensor_health_demo_counts_cover_fleet(demo_vehicles):
     assert len(sh["terminals"]) == len(demo_vehicles)
     assert sum(sh["counts"].values()) == len(demo_vehicles)
     assert set(sh["counts"]) >= {"online", "stale", "offline"}
-    assert sh["level"] == "terminal"
+    assert sh["level"] == "terminal+power"
+    # уровень 1.5: у части подозрительных проставлено напряжение + вердикт
+    assert any(m.get("power_verdict") for m in sh["missing_capabilities"])
 
 
 def test_sensor_health_live_marks_missing_fuel():

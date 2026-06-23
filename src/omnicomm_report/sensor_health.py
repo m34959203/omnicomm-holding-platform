@@ -121,6 +121,36 @@ def terminal_health(activity_rows: Iterable[dict], now: int,
     return out
 
 
+# --- Уровень 1.5 — ПИТАНИЕ (gate «сбой ДУТ vs обесточен», kb-10) --------------
+
+class PowerStatus(str, Enum):
+    OK = "ok"              # питание в норме
+    LOW = "low"            # просадка питания
+    CRITICAL = "critical"  # практически обесточен
+    UNKNOWN = "unknown"    # напряжение неизвестно
+
+
+def classify_power(voltage: Optional[float]) -> PowerStatus:
+    """Статус питания по напряжению бортсети (12В и 24В системы)."""
+    if voltage is None or voltage <= 0:
+        return PowerStatus.UNKNOWN
+    if voltage < config.VOLTAGE_DEAD:
+        return PowerStatus.CRITICAL
+    if voltage > config.VOLTAGE_24V_SPLIT:               # 24В-система
+        return PowerStatus.LOW if voltage < config.VOLTAGE_24V_LOW else PowerStatus.OK
+    return PowerStatus.LOW if voltage < config.VOLTAGE_12V_LOW else PowerStatus.OK
+
+
+def power_verdict(status: PowerStatus) -> str:
+    """Вердикт для пропавшего блока данных с учётом питания (уровень 1.5)."""
+    return {
+        PowerStatus.OK: "питание в норме → вероятен сбой датчика",
+        PowerStatus.LOW: "низкое питание — возможная причина пропадания данных",
+        PowerStatus.CRITICAL: "обесточен — причина в питании, не в датчике",
+        PowerStatus.UNKNOWN: "питание неизвестно",
+    }[status]
+
+
 # --- Наличие возможностей (capabilities) по consolidatedReport ----------------
 
 class Capability(str, Enum):

@@ -52,9 +52,35 @@ def _terminal_dict(th) -> dict:
     }
 
 
+def _annotate_power(missing: list, fetch_state) -> dict:
+    """Уровень 1.5: для подозрительных (пропал блок) тянем напряжение из /state и
+    разводим «сбой датчика (питание есть)» vs «обесточен/низкое питание».
+
+    `fetch_state(tid) -> dict` — инъекция (в проде = client.get_vehicle_state).
+    Пробуем не весь парк, а до SENSOR_VOLTAGE_PROBE_MAX подозрительных (rate-limit).
+    Возвращает сводку по статусам питания.
+    """
+    summary = {s.value: 0 for s in sensor_health.PowerStatus}
+    if fetch_state is None:
+        return summary
+    for m in missing[:config.SENSOR_VOLTAGE_PROBE_MAX]:
+        try:
+            st = fetch_state(m["terminal_id"]) or {}
+        except Exception:  # noqa: BLE001 — проба не валит снапшот
+            continue
+        v = st.get("voltage")
+        status = sensor_health.classify_power(v)
+        m["voltage"] = v
+        m["power"] = status.value
+        m["power_verdict"] = sensor_health.power_verdict(status)
+        summary[status.value] += 1
+    return summary
+
+
 def build_sensor_health(activity_rows: Iterable[dict], records: Iterable[dict],
-                        tree_vehicles: Iterable[dict], now: int) -> dict:
-    """Светофор терминалов (R7.1) + пропавшие возможности по KPI (R7.2)."""
+                        tree_vehicles: Iterable[dict], now: int,
+                        fetch_state=None) -> dict:
+    """Светофор терминалов (R7.1) + пропавшие возможности (R7.2) + питание (ур.1.5)."""
     terminals = sensor_health.terminal_health(activity_rows, now, vehicles=tree_vehicles)
     caps = sensor_health.fleet_capabilities(records)
 
@@ -80,11 +106,15 @@ def build_sensor_health(activity_rows: Iterable[dict], records: Iterable[dict],
             })
     missing.sort(key=lambda m: (-len(m["missing"]), m["terminal_id"]))
 
+    # Уровень 1.5 — питание (gate «сбой ДУТ vs обесточен») для подозрительных.
+    power = _annotate_power(missing, fetch_state)
+
     return {
         "terminals": [_terminal_dict(t) for t in terminals],
         "counts": counts,
         "missing_capabilities": missing,
-        "level": "terminal",  # честная граница: сенсор-уровень недоступен по REST
+        "power": power,                       # сводка статусов питания подозрительных
+        "level": "terminal+power" if fetch_state else "terminal",
     }
 
 
@@ -108,13 +138,20 @@ def build_sensor_health_demo(vehicles, now: int) -> dict:
             "last_seen": now - age, "age_seconds": age,
             "receive_data": status is not TerminalStatus.OFFLINE,
         })
-        # часть ТС «потеряла» датчик топлива
+        # часть ТС «потеряла» датчик топлива — с синтетическим напряжением (ур.1.5)
         if bucket in (1, 5):
+            volt = 13.8 if bucket == 1 else 10.9   # норма vs просадка
+            ps = sensor_health.classify_power(volt)
             missing.append({"terminal_id": tid, "name": v.name,
-                            "missing": ["Топливо (ДУТ)"]})
+                            "missing": ["Топливо (ДУТ)"], "voltage": volt,
+                            "power": ps.value, "power_verdict": sensor_health.power_verdict(ps)})
     missing.sort(key=lambda m: m["terminal_id"])
+    power = {s.value: 0 for s in sensor_health.PowerStatus}
+    for m in missing:
+        if m.get("power"):
+            power[m["power"]] += 1
     return {"terminals": terminals, "counts": counts,
-            "missing_capabilities": missing, "level": "terminal"}
+            "missing_capabilities": missing, "power": power, "level": "terminal+power"}
 
 
 # --- Контроль ТО (R6.1–R6.3) -------------------------------------------------
