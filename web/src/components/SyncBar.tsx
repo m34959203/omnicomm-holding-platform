@@ -24,6 +24,8 @@ export default function SyncBar({
   syncedAt, periodLabel, onDone, snapshots, periodKey, onSelectSnapshot,
 }: Props) {
   const [job, setJob] = useState<Job | null>(null);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const running = job?.status === "running" || job?.status === "pending";
 
@@ -63,6 +65,16 @@ export default function SyncBar({
     const end = Math.floor(Date.now() / 1000);
     trigger({ start_ts: end - days * 86400, end_ts: end });
   }
+
+  // Произвольный период по календарю (день начала 00:00 — день конца 23:59, UTC).
+  function syncCustom() {
+    if (!from || !to) return;
+    const s = Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000);
+    const e = Math.floor(Date.parse(`${to}T23:59:59Z`) / 1000);
+    if (Number.isNaN(s) || Number.isNaN(e) || s >= e) return;
+    trigger({ start_ts: s, end_ts: e });
+  }
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -106,6 +118,32 @@ export default function SyncBar({
             {tpl.label}
           </button>
         ))}
+
+        {/* произвольный период по календарю */}
+        <span className="eyebrow text-ink-faint">период:</span>
+        <input
+          type="date" value={from} max={to || today} onChange={(e) => setFrom(e.target.value)}
+          disabled={running}
+          className="data border border-line-strong bg-transparent px-2 py-1 text-xs text-ink
+                     focus:border-accent focus:outline-none disabled:opacity-40"
+        />
+        <span className="text-ink-faint">—</span>
+        <input
+          type="date" value={to} min={from || undefined} max={today} onChange={(e) => setTo(e.target.value)}
+          disabled={running}
+          className="data border border-line-strong bg-transparent px-2 py-1 text-xs text-ink
+                     focus:border-accent focus:outline-none disabled:opacity-40"
+        />
+        <button
+          onClick={syncCustom}
+          disabled={running || !from || !to}
+          className="border border-accent px-2.5 py-1 text-[0.7rem] uppercase tracking-[0.12em]
+                     text-accent transition-colors hover:bg-accent hover:text-surface
+                     disabled:cursor-not-allowed disabled:opacity-40"
+          style={{ fontFamily: "var(--font-mono)" }}
+        >
+          Собрать
+        </button>
 
         {running && (
           <span className="flex items-center gap-2">

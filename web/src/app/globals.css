@@ -78,6 +78,10 @@
 
 * { border-color: var(--line); }
 
+/* нативные контролы (date-picker и т.п.) под текущую тему */
+:root, [data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
+
 html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
 body {
