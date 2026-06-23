@@ -2,6 +2,7 @@
 
 import { excelUrl } from "@/lib/api";
 import { Lang, useLang } from "@/lib/i18n";
+import ThemeToggle from "./ThemeToggle";
 
 // Панель действий масткеда: переключатель языка RU/KK + кнопка Excel-выгрузки.
 export default function Toolbar({ periodKey }: { periodKey?: string }) {
@@ -31,6 +32,7 @@ export default function Toolbar({ periodKey }: { periodKey?: string }) {
       >
         ↓ {t("excel.btn")}
       </a>
+      <ThemeToggle />
     </div>
   );
 }

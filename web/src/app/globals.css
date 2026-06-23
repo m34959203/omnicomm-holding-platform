@@ -1,27 +1,54 @@
 @import "tailwindcss";
 
 /* =========================================================================
-   EDITORIAL-NOIR — система платформы Omnicomm Holding
-   Тёмный «ночной дайджест автопарка»: контрастный серив-дисплей, моно-данные,
-   волосяные линии, щедрый воздух, ОДИН кислотный сигнальный акцент (signal lime).
+   OMNICOMM ONLINE — фирменная система платформы автопарка холдинга
+   Светлая тема по умолчанию (как Omnicomm Online): белые карточки, тёмно-синяя
+   шапка, синий акцент, зелёный для скорости/статуса. Шрифт — Roboto.
+   Тёмная тема — через [data-theme="dark"] (переключатель).
    ========================================================================= */
 
-:root {
-  --paper: #0c0c0d;          /* фон — тёплый почти-чёрный */
-  --paper-2: #111113;        /* приподнятый фон секций */
-  --surface: #151517;        /* карточки */
-  --surface-2: #1b1b1e;      /* карточки поверх карточек / hover */
-  --ink: #ece8df;            /* основной текст — тёплая кость */
-  --ink-dim: #93908a;        /* приглушённый */
-  --ink-faint: #5d5b56;      /* подписи/мета */
-  --line: rgba(236, 232, 223, 0.10);   /* волосяные линии */
-  --line-strong: rgba(236, 232, 223, 0.20);
+/* ---- Светлая тема (Omnicomm, по умолчанию) ---- */
+:root, [data-theme="light"] {
+  --paper: #eef1f6;          /* фон приложения — светлый сине-серый */
+  --paper-2: #e6eaf1;        /* приподнятый фон секций */
+  --surface: #ffffff;        /* карточки */
+  --surface-2: #f3f6fa;      /* карточки поверх / hover */
+  --ink: #16273f;            /* основной текст — тёмно-синий */
+  --ink-dim: #56677e;        /* приглушённый */
+  --ink-faint: #93a0b2;      /* подписи/мета */
+  --line: rgba(19, 41, 75, 0.10);
+  --line-strong: rgba(19, 41, 75, 0.18);
 
-  --accent: #ccfa4e;         /* ЕДИНСТВЕННЫЙ акцент — signal lime */
-  --accent-dim: #9bbf3a;
-  --danger: #ff5d52;         /* превышения / опасность */
-  --warn: #f0a338;           /* простой / внимание */
-  --cool: #7fb2d9;           /* нейтральная инфо */
+  --brand: #13294b;          /* тёмно-синяя шапка Omnicomm */
+  --accent: #1f6fd6;         /* акцент — синий Omnicomm */
+  --accent-dim: #1559b0;
+  --positive: #2e9e5b;       /* зелёный — скорость/статус */
+  --danger: #e23b3b;         /* превышения / опасность */
+  --warn: #e08a2b;           /* простой / внимание */
+  --cool: #5a7fa8;
+  --on-accent: #ffffff;      /* текст на акценте */
+}
+
+/* ---- Тёмная тема (Omnicomm dark navy) ---- */
+[data-theme="dark"] {
+  --paper: #0e1b2e;
+  --paper-2: #122236;
+  --surface: #16263c;
+  --surface-2: #1e3148;
+  --ink: #e7eef6;
+  --ink-dim: #9fb0c4;
+  --ink-faint: #6c7e94;
+  --line: rgba(231, 238, 246, 0.10);
+  --line-strong: rgba(231, 238, 246, 0.20);
+
+  --brand: #0a1626;
+  --accent: #4d97e6;
+  --accent-dim: #2f7fd6;
+  --positive: #45b06a;
+  --danger: #ff6b6b;
+  --warn: #f0a338;
+  --cool: #7fb2d9;
+  --on-accent: #0a1626;
 }
 
 @theme inline {
@@ -34,15 +61,19 @@
   --color-ink-faint: var(--ink-faint);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
+  --color-positive: var(--positive);
   --color-danger: var(--danger);
   --color-warn: var(--warn);
   --color-cool: var(--cool);
+  --color-on-accent: var(--on-accent);
 
-  --font-display: var(--font-spectral);
-  --font-sans: var(--font-body);
-  --font-mono: var(--font-jetbrains);
+  --font-display: var(--font-roboto);
+  --font-sans: var(--font-roboto);
+  --font-mono: var(--font-roboto-mono);
+  --font-currency: var(--font-roboto);
 }
 
 * { border-color: var(--line); }
@@ -53,32 +84,21 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-feature-settings: "ss01", "cv01";
-  background-image:
-    radial-gradient(120% 80% at 78% -10%, rgba(204, 250, 78, 0.06), transparent 60%),
-    radial-gradient(80% 60% at 0% 0%, rgba(127, 178, 217, 0.04), transparent 55%);
-  background-attachment: fixed;
-}
-
-/* зернистый оверлей поверх всего — печатная текстура */
-body::after {
-  content: "";
-  position: fixed; inset: 0; z-index: 60; pointer-events: none;
-  opacity: 0.035; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* ---- Типографические примитивы ---- */
 .eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.68rem;
-  letter-spacing: 0.22em;
+  font-weight: 500;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
 .numeral {
-  font-family: var(--font-display);
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 700;
   font-size: 0.85rem;
   color: var(--accent);
 }
@@ -87,24 +107,23 @@ body::after {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
-/* Денежные значения: шрифт с глифом ₸ (Noto Sans), без переноса. */
 .money {
-  font-family: var(--font-currency), var(--font-mono), system-ui, sans-serif;
+  font-family: var(--font-mono), var(--font-sans), system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
 .display {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: -0.015em;
-  line-height: 1.0;
+  line-height: 1.05;
 }
 
 .rule { height: 1px; background: var(--line); }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--surface-2); }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ---- появление при загрузке (staggered) ---- */
@@ -112,7 +131,7 @@ body::after {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.rise { opacity: 0; animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.rise { opacity: 0; animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 @keyframes sweep {
   from { transform: translateX(-100%); }
@@ -121,13 +140,13 @@ body::after {
 .sweep { position: relative; overflow: hidden; }
 .sweep::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(204,250,78,0.18), transparent);
+  background: linear-gradient(90deg, transparent, rgba(31,111,214,0.14), transparent);
   animation: sweep 1.4s ease-in-out infinite;
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(204,250,78,0.5); }
-  50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(204,250,78,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46,158,91,0.5); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(46,158,91,0); }
 }
 .live-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
 

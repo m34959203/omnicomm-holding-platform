@@ -100,7 +100,7 @@ export function LineChart({
         <line x1={padX} x2={W - padX} y1={y(threshold)} y2={y(threshold)}
           stroke="var(--danger)" strokeWidth="1" strokeDasharray="4 3" opacity="0.75" />
       )}
-      {n > 1 && <path d={d} fill="none" stroke="var(--accent)" strokeWidth="1.4" />}
+      {n > 1 && <path d={d} fill="none" stroke="var(--positive)" strokeWidth="1.4" />}
       <text x={padX} y={padT - 4} fontSize="11" fill="var(--ink-faint)"
         style={{ fontFamily: "var(--font-mono)" }}>{Math.round(mx)}{unit ? ` ${unit}` : ""}</text>
     </svg>

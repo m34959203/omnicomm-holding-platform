@@ -49,14 +49,14 @@ export default function VehicleCard({
       }, { suppressMapOpenBlock: true });
       mapObj.current = map;
       map.geoObjects.add(new ymaps.Polyline(coords, {}, {
-        strokeColor: "#ccfa4e", strokeWidth: 3, strokeOpacity: 0.9,
+        strokeColor: "#1f6fd6", strokeWidth: 3, strokeOpacity: 0.9,
       }));
       const start = data.track[0];
       map.geoObjects.add(new ymaps.Placemark([start.lat, start.lon],
         { hintContent: "старт" }, { preset: "islands#grayCircleDotIcon" }));
       map.geoObjects.add(new ymaps.Placemark([last.lat, last.lon],
         { hintContent: data.name || terminalId, balloonContent: `${num(last.speed, 1)} км/ч` },
-        { preset: "islands#greenAutoIcon", iconColor: "#ccfa4e" }));
+        { preset: "islands#greenAutoIcon", iconColor: "#1f6fd6" }));
       const b = map.geoObjects.getBounds();
       if (b) map.setBounds(b, { checkZoomRange: true, zoomMargin: 30 });
     }).catch(() => {});

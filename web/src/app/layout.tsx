@@ -1,31 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Spectral, IBM_Plex_Sans, JetBrains_Mono, Noto_Sans } from "next/font/google";
+import { Roboto, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 
-// Валютный шрифт: JetBrains/IBM Plex в subset latin+cyrillic НЕ содержат ₸ (U+20B8)
-// → браузер подставлял огромный фолбэк-глиф, ломавший сетку плиток. Noto Sans
-// содержит ₸ — применяем к денежным значениям через класс .money.
-const currency = Noto_Sans({
-  variable: "--font-currency",
-  subsets: ["latin"],
+// Шрифт Omnicomm Online — чистый гротеск Roboto (+ Roboto Mono для чисел).
+const roboto = Roboto({
+  variable: "--font-roboto",
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "700"],
+});
+const robotoMono = Roboto_Mono({
+  variable: "--font-roboto-mono",
+  subsets: ["latin", "cyrillic"],
   weight: ["400", "500"],
-});
-
-const spectral = Spectral({
-  variable: "--font-spectral",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600"],
-});
-
-const body = IBM_Plex_Sans({
-  variable: "--font-body",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600"],
-});
-
-const jetbrains = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin", "cyrillic"],
 });
 
 export const metadata: Metadata = {
@@ -34,12 +20,14 @@ export const metadata: Metadata = {
     "Аналитическая платформа автопарка холдинга: KPI по ДЗО, деньги, скоростной режим СТ КАП, геозоны.",
 };
 
-// Явный viewport — корректный масштаб на телефоне (R3.5).
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0c0c0d",
+  themeColor: "#13294b",
 };
+
+// Анти-флэш: применяем сохранённую тему до первой отрисовки.
+const themeInit = `(function(){try{var t=localStorage.getItem('okp_theme');document.documentElement.dataset.theme=(t==='dark'||t==='light')?t:'light';}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default function RootLayout({
   children,
@@ -47,8 +35,13 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${spectral.variable} ${body.variable} ${jetbrains.variable} ${currency.variable} h-full`}
+      data-theme="light"
+      suppressHydrationWarning
+      className={`${roboto.variable} ${robotoMono.variable} h-full`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

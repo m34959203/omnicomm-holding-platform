@@ -97,7 +97,7 @@ function addOverlay(map: maplibregl.Map, features: GeoFeature[]) {
       "text-size": 12, "symbol-placement": "point",
     },
     paint: {
-      "text-color": "#ccfa4e", "text-halo-color": "#0c0c0d", "text-halo-width": 1.8,
+      "text-color": "#1f6fd6", "text-halo-color": "#ffffff", "text-halo-width": 1.8,
     },
   });
 
