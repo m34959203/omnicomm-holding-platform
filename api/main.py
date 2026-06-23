@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from omnicomm_report import config
 
-from . import cache, excel, jobs, sync
+from . import cache, excel, jobs, sync, vehicle
 
 # Загрузить .env в окружение (cron его не сорсит) — иначе Settings.from_env()
 # не увидит LOGIN/PASSWORD/SERVICE для live-синка.
@@ -173,6 +173,35 @@ def maintenance(period_key: Optional[str] = Query(None)) -> dict:
     snap = _snapshot(period_key)
     return {"maintenance": snap.get("maintenance"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
+
+
+def _veh_window(start_ts, end_ts):
+    end = end_ts or int(time.time())
+    return (start_ts or (end - 24 * 3600)), end
+
+
+@app.get("/api/vehicle/{terminal_id}")
+def vehicle_card(terminal_id: str,
+                 start_ts: Optional[int] = Query(None),
+                 end_ts: Optional[int] = Query(None)) -> dict:
+    """Карточка ТС (live): трек + ряд скорости. Быстро (~1-2с). По умолчанию — 1 сутки."""
+    start, end = _veh_window(start_ts, end_ts)
+    try:
+        return vehicle.track_detail(terminal_id, start, end)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Omnicomm недоступен: {exc}")
+
+
+@app.get("/api/vehicle/{terminal_id}/telemetry")
+def vehicle_telemetry(terminal_id: str,
+                      start_ts: Optional[int] = Query(None),
+                      end_ts: Optional[int] = Query(None)) -> dict:
+    """Телеметрия ТС из сводного отчёта (медленно ~16с) — грузится лениво."""
+    start, end = _veh_window(start_ts, end_ts)
+    try:
+        return vehicle.telemetry(terminal_id, start, end)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Omnicomm недоступен: {exc}")
 
 
 @app.get("/api/dashboard.xlsx")

@@ -1,0 +1,101 @@
+"""Карточка ТС: live-данные одного ТС по запросу (трек + телеметрия).
+
+Трек тяжёлый и не лежит в снапшоте → тянем по запросу для конкретного ТС
+(дёшево: один ТС). Залогиненный клиент кэшируется в процессе, токен освежается
+самим OmnicommClient. Источник трека: GET /reports/track/{id} (проверено,
+точки {date,latitude,longitude,speed,direction,satellitesCount}).
+"""
+
+from __future__ import annotations
+
+import threading
+from datetime import datetime, timezone
+from typing import Optional
+
+from omnicomm_report import data_loader
+from omnicomm_report.models import ReportPeriod
+
+_client = None
+_lock = threading.Lock()
+
+
+def _get_client():
+    """Залогиненный клиент Omnicomm, кэш на процесс (ленивый, под локом)."""
+    global _client
+    with _lock:
+        if _client is None:
+            from omnicomm_report.api_client import OmnicommClient
+            from omnicomm_report.config import Settings
+            cl = OmnicommClient(Settings.from_env())
+            cl.login()
+            _client = cl
+        return _client
+
+
+def _downsample(seq: list, cap: int) -> list:
+    """Прорядить список до ~cap элементов, сохранив первый/последний."""
+    n = len(seq)
+    if n <= cap:
+        return seq
+    step = n / cap
+    out = [seq[int(i * step)] for i in range(cap)]
+    if seq[-1] is not out[-1]:
+        out[-1] = seq[-1]
+    return out
+
+
+def _period(start_ts: int, end_ts: int) -> ReportPeriod:
+    return ReportPeriod(start=datetime.fromtimestamp(start_ts, timezone.utc),
+                        end=datetime.fromtimestamp(end_ts, timezone.utc))
+
+
+def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+    """Трек ТС: полилиния + маркеры + ряд скорости. БЫСТРО (~1-2с) — без сводного.
+
+    Имя ТС не дёргаем из дерева (~2000-элементный запрос) — фронт знает имя сам.
+    Телеметрия (сводный отчёт ~16с на медленном контуре) грузится отдельно `telemetry()`.
+    """
+    client = _get_client()
+    raw = client.get_track(str(terminal_id), _period(start_ts, end_ts))
+    pts = [p for p in raw
+           if p.get("latitude") is not None and p.get("longitude") is not None]
+    track = [{"lat": p["latitude"], "lon": p["longitude"],
+              "speed": p.get("speed") or 0, "ts": p.get("date"),
+              "sat": p.get("satellitesCount")} for p in pts]
+    poly = _downsample(track, 1000)
+    speed_series = [{"ts": t["ts"], "speed": t["speed"]}
+                    for t in _downsample(track, 400)]
+    return {
+        "terminal_id": str(terminal_id),
+        "name": None,
+        "period": {"start_ts": start_ts, "end_ts": end_ts},
+        "track": poly,
+        "speed_series": speed_series,
+        "last": track[-1] if track else None,
+        "track_points": len(track),
+        "track_max_speed": round(max((t["speed"] for t in track), default=0), 1),
+        "telemetry": {},
+    }
+
+
+def telemetry(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+    """Телеметрия ТС из сводного отчёта (МЕДЛЕННО ~16с) — грузится лениво."""
+    client = _get_client()
+    out: dict = {}
+    try:
+        payload = client.get_consolidated_report([str(terminal_id)], _period(start_ts, end_ts))
+        records = data_loader._extract_records(payload)
+        vehicles = data_loader._aggregate_consolidated(records, {str(terminal_id): None})
+        if vehicles:
+            vm = vehicles[0]
+            out = {
+                "max_speed_kmh": getattr(vm, "max_speed_kmh", None),
+                "mileage_km": getattr(vm, "mileage_km", None),
+                "fuel_l": getattr(vm, "fuel_l", None),
+                "engine_hours": getattr(vm, "engine_hours", None),
+                "fuel_idle_l": getattr(vm, "fuel_idle_l", None),
+                "speeding_mileage_km": getattr(vm, "speeding_mileage_km", None),
+            }
+    except Exception:  # noqa: BLE001 — телеметрия не валит карточку
+        out = {}
+    return {"terminal_id": str(terminal_id), "telemetry": out}

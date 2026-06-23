@@ -28,6 +28,7 @@ import HealthStrip from "@/components/HealthStrip";
 import AttentionFeed from "@/components/AttentionFeed";
 import Overview from "@/components/Overview";
 import DomainTabs from "@/components/DomainTabs";
+import VehicleCard from "@/components/VehicleCard";
 
 export default function Page() {
   const { t } = useLang();
@@ -45,6 +46,7 @@ export default function Page() {
   const [tab, setTab] = useState<TabKey>("money");
   const [focus, setFocus] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
+  const [vehCard, setVehCard] = useState<{ id: string; name?: string } | null>(null);
 
   // Грузим конкретный снимок (по period_key) — выбор снимка/шаблона.
   const load = useCallback(async (key?: string) => {
@@ -227,6 +229,7 @@ export default function Page() {
                 recs={recsS} sensor={sensorS} maint={maintS}
                 geos={geos} scoped={scoped} speedByOrg={speedByOrg}
                 focusId={focus}
+                onOpenVehicle={(id, name) => setVehCard({ id, name })}
               />
             </div>
           </div>
@@ -236,6 +239,11 @@ export default function Page() {
           <p className="eyebrow">{t("footer")}</p>
         </footer>
       </main>
+
+      {vehCard && (
+        <VehicleCard terminalId={vehCard.id} name={vehCard.name}
+          onClose={() => setVehCard(null)} />
+      )}
     </div>
   );
 }

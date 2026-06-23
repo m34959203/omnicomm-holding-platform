@@ -105,6 +105,19 @@ export interface Maintenance {
   note: string;
 }
 
+export interface TrackPoint { lat: number; lon: number; speed: number; ts: number; sat?: number }
+export interface VehicleDetail {
+  terminal_id: string;
+  name: string | null;
+  period: { start_ts: number; end_ts: number };
+  track: TrackPoint[];
+  speed_series: { ts: number; speed: number }[];
+  last: TrackPoint | null;
+  track_points: number;
+  track_max_speed: number;
+  telemetry: Record<string, number | null>;
+}
+
 export interface Meta {
   period_key: string;
   synced_at: number;
@@ -157,6 +170,15 @@ export const getMaintenance = (key?: string) =>
 // Прямая ссылка на Excel-выгрузку (скачивание браузером).
 export const excelUrl = (key?: string) =>
   `${API}/api/dashboard.xlsx${key ? `?period_key=${key}` : ""}`;
+
+export const getVehicle = (id: string, range?: { start_ts: number; end_ts: number }) =>
+  get<VehicleDetail>(
+    `/api/vehicle/${id}${range ? `?start_ts=${range.start_ts}&end_ts=${range.end_ts}` : ""}`,
+  );
+export const getVehicleTelemetry = (id: string) =>
+  get<{ terminal_id: string; telemetry: Record<string, number | null> }>(
+    `/api/vehicle/${id}/telemetry`,
+  );
 
 export const getSnapshots = () => get<Meta[]>(`/api/snapshots`);
 

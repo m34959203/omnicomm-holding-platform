@@ -14,11 +14,12 @@ const SEV_TONE: Record<string, string> = {
 const DEFAULT_SHOWN = 12;
 
 export default function Recommendations({
-  recs, topOrgs = [], focusId,
+  recs, topOrgs = [], focusId, onOpenVehicle,
 }: {
   recs: Recommendation[];
   topOrgs?: { label: string; value: number }[];
   focusId?: string | null;
+  onOpenVehicle?: (id: string, name?: string) => void;
 }) {
   const { t } = useLang();
   const [open, setOpen] = useState<string | null>(null);
@@ -132,15 +133,26 @@ export default function Recommendations({
               {isOpen && (
                 <div className="grid grid-cols-1 gap-3 pb-4 pl-1 sm:grid-cols-[1fr_auto]">
                   <p className="data text-xs leading-relaxed text-ink-dim">{r.text}</p>
-                  <div className="flex shrink-0 flex-wrap gap-x-6 gap-y-1 text-xs">
-                    <span className="data text-ink-faint">
-                      общ. дороги <span className="text-ink">{r.public_episodes}</span>
-                    </span>
-                    <span className="data text-ink-faint">
-                      техдороги <span className="text-ink">{r.tech_episodes}</span>
-                    </span>
-                    {r.worst_article && (
-                      <span className="data text-warn">{r.worst_article} КоАП</span>
+                  <div className="flex shrink-0 flex-col items-start gap-2 text-xs">
+                    <div className="flex flex-wrap gap-x-6 gap-y-1">
+                      <span className="data text-ink-faint">
+                        общ. дороги <span className="text-ink">{r.public_episodes}</span>
+                      </span>
+                      <span className="data text-ink-faint">
+                        техдороги <span className="text-ink">{r.tech_episodes}</span>
+                      </span>
+                      {r.worst_article && (
+                        <span className="data text-warn">{r.worst_article} КоАП</span>
+                      )}
+                    </div>
+                    {onOpenVehicle && (
+                      <button
+                        onClick={() => onOpenVehicle(r.terminal_id, r.name)}
+                        className="eyebrow border border-line-strong px-3 py-1 text-accent
+                                   transition-colors hover:border-accent hover:bg-accent hover:text-surface"
+                      >
+                        Трек на карте →
+                      </button>
                     )}
                   </div>
                 </div>

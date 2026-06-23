@@ -2,30 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GeoFeature } from "@/lib/api";
+import { loadYmaps } from "@/lib/ymaps";
 
 // Карта геозон на Яндекс.Картах. Тип «Гибрид» (yandex#hybrid) = спутник + подписи
 // дорог/городов, «Схема» (yandex#map) — векторная схема. Геозоны рисуются нативными
 // ymaps.Polygon/ymaps.Polyline, клик по фигуре → балун с названием и лимитом.
 // Требует NEXT_PUBLIC_YANDEX_MAPS_API_KEY (JS API, ограничение по referrer-домену).
-
-// Скрипт Яндекс.Карт грузим один раз на всё приложение.
-let ymapsPromise: Promise<any> | null = null;
-function loadYmaps(apiKey: string): Promise<any> {
-  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
-  const w = window as unknown as { ymaps?: any };
-  if (w.ymaps?.Map) return Promise.resolve(w.ymaps);
-  if (!ymapsPromise) {
-    ymapsPromise = new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU`;
-      s.async = true;
-      s.onload = () => w.ymaps.ready(() => resolve(w.ymaps));
-      s.onerror = () => reject(new Error("yandex maps failed to load"));
-      document.head.appendChild(s);
-    });
-  }
-  return ymapsPromise;
-}
 
 export default function YandexGeozoneMap({
   features,

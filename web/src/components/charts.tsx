@@ -78,6 +78,35 @@ export function StackedBar({
   );
 }
 
+// Линейный график (скорость во времени). threshold — горизонтальная риска лимита.
+export function LineChart({
+  series, max, threshold, unit = "",
+}: {
+  series: number[];
+  max?: number;
+  threshold?: number;
+  unit?: string;
+}) {
+  const W = 640, H = 150, padB = 16, padT = 16, padX = 4;
+  const n = series.length;
+  const mx = Math.max(1, max ?? Math.max(...series, threshold ?? 0));
+  const x = (i: number) => padX + (i / Math.max(1, n - 1)) * (W - padX * 2);
+  const y = (v: number) => padT + (1 - v / mx) * (H - padT - padB);
+  const d = series.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="block" role="img" aria-label="график скорости">
+      <line x1={padX} x2={W - padX} y1={H - padB} y2={H - padB} stroke="var(--line-strong)" strokeWidth="1" />
+      {threshold != null && (
+        <line x1={padX} x2={W - padX} y1={y(threshold)} y2={y(threshold)}
+          stroke="var(--danger)" strokeWidth="1" strokeDasharray="4 3" opacity="0.75" />
+      )}
+      {n > 1 && <path d={d} fill="none" stroke="var(--accent)" strokeWidth="1.4" />}
+      <text x={padX} y={padT - 4} fontSize="11" fill="var(--ink-faint)"
+        style={{ fontFamily: "var(--font-mono)" }}>{Math.round(mx)}{unit ? ` ${unit}` : ""}</text>
+    </svg>
+  );
+}
+
 // Ранжированные горизонтальные бары (топ-N: ДЗО по эпизодам и т.п.).
 export function RankBars({
   items, tone = "warn", unit = "",
