@@ -94,6 +94,32 @@ def start_sync(req: SyncRequest) -> dict:
     return job.to_dict()
 
 
+class IncrementalSyncRequest(BaseModel):
+    ingest_days: Optional[int] = None   # сколько свежих суток довезти (None → config)
+    view_days: Optional[int] = None     # окно пересборки снимка (None → config)
+    fuel_price_kzt: float = 0.0
+    workers: int = 6
+
+
+@app.post("/api/sync/incremental")
+def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
+    """Инкрементальный синк (для cron каждые 3ч): довезти ТОЛЬКО свежие сутки в
+    сырое хранилище и пересобрать снимок из накопленного — историю не перезабираем.
+    Разовый backfill истории — вызвать с большим `ingest_days` (напр. 30)."""
+    running = jobs.registry.active("sync")
+    if running is not None:
+        return {**running.to_dict(), "already_running": True}
+    fuel = req.fuel_price_kzt or DEFAULT_FUEL_PRICE_KZT
+    workers = max(1, min(req.workers, MAX_WORKERS))
+
+    def target(progress):
+        return sync.run_incremental_sync(
+            progress, ingest_days=req.ingest_days, view_days=req.view_days,
+            fuel_price_kzt=fuel, workers=workers)
+
+    return jobs.registry.start("sync", target).to_dict()
+
+
 @app.get("/api/sync/{job_id}")
 def sync_status(job_id: str) -> dict:
     job = jobs.registry.get(job_id)
