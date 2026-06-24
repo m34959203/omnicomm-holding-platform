@@ -24,7 +24,9 @@
 
 from __future__ import annotations
 
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout, as_completed
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -69,15 +71,23 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
                        rate_per_min: Optional[float] = None,
                        max_seconds: Optional[float] = None,
                        refresh_days: Optional[int] = None,
+                       workers: Optional[int] = None,
                        raw_path: Optional[str] = None,
-                       client=None, name_map: Optional[dict] = None,
+                       client=None, make_client=None,
+                       name_map: Optional[dict] = None,
                        now: Optional[int] = None) -> dict:
     """Добрать треки за `days` суток в архив, бережно к Omnicomm. См. модуль-докстринг.
 
     ПРАВИЛО СВЕЖЕСТИ (зеркалит агрегаты, у которых `INGEST_WINDOW_DAYS` довозится
     каждый синк): текущий НЕЗАВЕРШЁННЫЙ день не архивируем (иначе заморозим частичный
     трек), последние `refresh_days` ЗАВЕРШЁННЫХ суток перезабираем даже если уже есть
-    (поглощаем опоздавшие точки терминалов), старше — морозим (resume-skip)."""
+    (поглощаем опоздавшие точки терминалов), старше — морозим (resume-skip).
+
+    ПАРАЛЛЕЛИЗМ: фаза-1 локально отбирает юниты (ТС×сутки к забору), фаза-2 тянет их
+    пулом из `workers` потоков (свой залогиненный клиент на поток). Общий `limiter`
+    (`rate_per_min`) + аккаунт-лимитер клиента (170/мин) держат СУММАРНУЮ частоту всех
+    потоков под потолком — воркеры лишь утилизируют его, перекрывая сетевую латентность.
+    """
     days = days or config.TRACK_BACKFILL_DAYS
     min_km = config.TRACK_MIN_MILEAGE_KM if min_km is None else min_km
     rate_per_min = rate_per_min or config.TRACK_BACKFILL_RATE_PER_MIN
@@ -87,68 +97,109 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
     raw_path = raw_path or raw_store.DEFAULT_PATH
     now = int(now if now is not None else time.time())
     deadline = time.monotonic() + max_seconds
-    limiter = RateLimiter(rate_per_min)   # бережный потолок именно для бэкфилла
+    limiter = RateLimiter(rate_per_min)   # общий потолок частоты на все потоки бэкфилла
 
-    if client is None:
-        client = _new_live_client()
+    # Фабрика клиента на поток. Если передан единичный `client` (тесты) — один поток.
+    if make_client is None and client is None:
+        make_client = _new_live_client
+    if make_client is None:                       # back-compat: общий клиент → 1 поток
+        make_client = lambda: client              # noqa: E731
+        workers = 1
+    workers = workers or config.TRACK_BACKFILL_WORKERS
+    lister = client or make_client()
     if name_map is None:
-        tree_vehicles = client.list_vehicles() or []
+        tree_vehicles = lister.list_vehicles() or []
         name_map = {str(v.get("terminal_id") or v.get("id") or v.get("uuid")): v.get("name")
                     for v in tree_vehicles
                     if (v.get("terminal_id") or v.get("id") or v.get("uuid"))}
 
     today0 = _day_start(now)
-    # ds >= fresh_after → завершённый, но «свежий» день: перезабираем даже если есть.
-    fresh_after = today0 - refresh_days * 86400
+    fresh_after = today0 - refresh_days * 86400   # ds≥fresh_after — свежий: перезабираем
     day_starts = [today0 - k * 86400 for k in range(days)]   # сегодня → назад в прошлое
     present = raw_store.tracks_present(day_starts[-1], today0 + 86400, raw_path)
 
-    pulled = refreshed = skipped_present = 0
-    skipped_incomplete = idle_days = no_aggregate_days = 0
+    skipped_present = skipped_incomplete = idle_days = no_aggregate_days = 0
     stopped = False
-    progress(2, f"Бэкфилл треков: {days} сут, лимит {rate_per_min:.0f}/мин (бережно)")
-    for di, ds in enumerate(day_starts):
-        if time.monotonic() >= deadline:
-            stopped = True
-            break
+
+    # ФАЗА 1 — локальный отбор юнитов (ТС×сутки) к забору (быстро, без сети).
+    units: list[tuple] = []                       # (tid, ds, here)
+    progress(2, f"Отбор суток с движением: окно {days} сут")
+    for ds in day_starts:
         de = ds + 86400
-        if de > now:                        # текущий неполный день — не морозим частичный трек
+        if de > now:                              # текущий неполный день — не морозим
             skipped_incomplete += 1
             continue
         day_records = raw_store.load_daily(ds, de - 1, raw_path)
         if not day_records:
-            no_aggregate_days += 1          # нет агрегатов → не знаем движения, не дёргаем
+            no_aggregate_days += 1                # нет агрегатов → движение неизвестно
             continue
         moved = _moved_vehicles(day_records, name_map, min_km)
         if not moved:
             idle_days += 1
             continue
         for tid in moved:
-            if time.monotonic() >= deadline:
-                stopped = True
-                break
             here = (str(tid), ds) in present
-            if here and ds < fresh_after:   # старый завершённый день — заморожен (resume-skip)
+            if here and ds < fresh_after:         # старый завершённый день — заморожен
                 skipped_present += 1
                 continue
-            limiter.acquire()               # бережная пауза (поверх аккаунт-лимитера клиента)
-            try:
-                raw = client.get_track(str(tid), ReportPeriod(
-                    start=datetime.fromtimestamp(ds, timezone.utc),
-                    end=datetime.fromtimestamp(de, timezone.utc)))
-            except Exception:               # noqa: BLE001 — сбой одного ТС не валит бэкфилл
-                raw = []
-            norm = _normalize(raw)
+            units.append((str(tid), ds, here))
+
+    # ФАЗА 2 — параллельный забор под общим лимитером, запись в SQLite под локом.
+    pulled = refreshed = 0
+    write_lock = threading.Lock()
+    counter_lock = threading.Lock()
+    tls = threading.local()
+
+    def _client():
+        c = getattr(tls, "client", None)
+        if c is None:
+            c = make_client()
+            tls.client = c
+        return c
+
+    def _work(unit):
+        nonlocal pulled, refreshed
+        tid, ds, here = unit
+        if time.monotonic() >= deadline:          # после дедлайна — не дёргаем Omnicomm
+            return False
+        limiter.acquire()                          # общий потолок частоты (на все потоки)
+        if time.monotonic() >= deadline:
+            return False
+        try:
+            raw = _client().get_track(str(tid), ReportPeriod(
+                start=datetime.fromtimestamp(ds, timezone.utc),
+                end=datetime.fromtimestamp(ds + 86400, timezone.utc)))
+        except Exception:                          # noqa: BLE001 — сбой ТС не валит бэкфилл
+            raw = []
+        norm = _normalize(raw)
+        with write_lock:
             raw_store.upsert_track(str(tid), ds, norm, path=raw_path)  # чекпоинт (даже пустой)
-            present.add((str(tid), ds))
+        with counter_lock:
             if here:
-                refreshed += 1              # свежий день перезабрали (опоздавшие точки)
+                refreshed += 1                     # свежий день перезабрали
             else:
                 pulled += 1
-        progress(2 + 96.0 * (di + 1) / len(day_starts),
-                 f"Дни {di + 1}/{len(day_starts)} · треков добрано {pulled}")
-        if stopped:
-            break
+        return True
+
+    total = len(units)
+    progress(4, f"Забор треков: {total} ТС×сутки, {workers} воркеров, лимит {rate_per_min:.0f}/мин")
+    if total and max_seconds > 0:
+        ex = ThreadPoolExecutor(max_workers=max(1, min(workers, total)))
+        futures = [ex.submit(_work, u) for u in units]
+        try:
+            done = 0
+            for fut in as_completed(futures, timeout=max_seconds):
+                fut.result()
+                done += 1
+                if done % 200 == 0 or done == total:
+                    progress(4 + 94.0 * done / total,
+                             f"Треки {done}/{total} · новых {pulled} (+{refreshed} обновл.)")
+        except FTimeout:
+            stopped = True
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
+    elif max_seconds <= 0:
+        stopped = True
 
     cov = raw_store.track_coverage(raw_path)
     msg = ("слайс завершён по таймауту — остаток добёрет следующий запуск"
@@ -157,4 +208,4 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
     return {"pulled": pulled, "refreshed": refreshed, "skipped_present": skipped_present,
             "skipped_incomplete": skipped_incomplete, "idle_days": idle_days,
             "no_aggregate_days": no_aggregate_days, "stopped_by_cap": stopped,
-            "coverage": cov}
+            "units": total, "coverage": cov}

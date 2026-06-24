@@ -130,8 +130,9 @@ def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
 class TrackBackfillRequest(BaseModel):
     days: Optional[int] = None          # окно бэкфилла (None → config, 365)
     min_km: Optional[float] = None      # порог пробега «день с движением» (None → config)
-    rate_per_min: Optional[float] = None  # бережный потолок забора (None → config)
+    rate_per_min: Optional[float] = None  # безопасный потолок забора (None → config)
     max_seconds: Optional[float] = None   # кап на один слайс (None → config)
+    workers: Optional[int] = None         # пул воркеров забора (None → config)
 
 
 @app.post("/api/track/backfill")
@@ -150,7 +151,8 @@ def start_track_backfill(req: TrackBackfillRequest) -> dict:
         from . import track_backfill
         return track_backfill.run_track_backfill(
             progress, days=req.days, min_km=req.min_km,
-            rate_per_min=req.rate_per_min, max_seconds=req.max_seconds)
+            rate_per_min=req.rate_per_min, max_seconds=req.max_seconds,
+            workers=req.workers)
 
     return jobs.registry.start("track_backfill", target).to_dict()
 

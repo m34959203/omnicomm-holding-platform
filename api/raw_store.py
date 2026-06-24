@@ -48,7 +48,12 @@ CREATE INDEX IF NOT EXISTS ix_track_date ON fact_track(date);
 
 def _connect(path: str) -> sqlite3.Connection:
     Path(os.path.dirname(path) or ".").mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30)
+    # WAL + busy_timeout: бэкфилл треков (пул воркеров) и 3ч-крон пишут ОДНУ БД
+    # параллельно → читатели не блокируют писателя, писатель ждёт лок до 30с, а не
+    # падает «database is locked».
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.executescript(_DDL)
     return conn
 
