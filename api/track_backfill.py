@@ -68,15 +68,22 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
                        min_km: Optional[float] = None,
                        rate_per_min: Optional[float] = None,
                        max_seconds: Optional[float] = None,
+                       refresh_days: Optional[int] = None,
                        raw_path: Optional[str] = None,
                        client=None, name_map: Optional[dict] = None,
                        now: Optional[int] = None) -> dict:
-    """Добрать треки за `days` суток в архив, бережно к Omnicomm. См. модуль-докстринг."""
+    """Добрать треки за `days` суток в архив, бережно к Omnicomm. См. модуль-докстринг.
+
+    ПРАВИЛО СВЕЖЕСТИ (зеркалит агрегаты, у которых `INGEST_WINDOW_DAYS` довозится
+    каждый синк): текущий НЕЗАВЕРШЁННЫЙ день не архивируем (иначе заморозим частичный
+    трек), последние `refresh_days` ЗАВЕРШЁННЫХ суток перезабираем даже если уже есть
+    (поглощаем опоздавшие точки терминалов), старше — морозим (resume-skip)."""
     days = days or config.TRACK_BACKFILL_DAYS
     min_km = config.TRACK_MIN_MILEAGE_KM if min_km is None else min_km
     rate_per_min = rate_per_min or config.TRACK_BACKFILL_RATE_PER_MIN
     # max_seconds=0 — легитимный «стоп сразу», поэтому именно None-проверка, не `or`.
     max_seconds = config.TRACK_BACKFILL_MAX_SECONDS if max_seconds is None else max_seconds
+    refresh_days = config.INGEST_WINDOW_DAYS if refresh_days is None else refresh_days
     raw_path = raw_path or raw_store.DEFAULT_PATH
     now = int(now if now is not None else time.time())
     deadline = time.monotonic() + max_seconds
@@ -91,10 +98,13 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
                     if (v.get("terminal_id") or v.get("id") or v.get("uuid"))}
 
     today0 = _day_start(now)
+    # ds >= fresh_after → завершённый, но «свежий» день: перезабираем даже если есть.
+    fresh_after = today0 - refresh_days * 86400
     day_starts = [today0 - k * 86400 for k in range(days)]   # сегодня → назад в прошлое
     present = raw_store.tracks_present(day_starts[-1], today0 + 86400, raw_path)
 
-    pulled = skipped_present = idle_days = no_aggregate_days = 0
+    pulled = refreshed = skipped_present = 0
+    skipped_incomplete = idle_days = no_aggregate_days = 0
     stopped = False
     progress(2, f"Бэкфилл треков: {days} сут, лимит {rate_per_min:.0f}/мин (бережно)")
     for di, ds in enumerate(day_starts):
@@ -102,6 +112,9 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
             stopped = True
             break
         de = ds + 86400
+        if de > now:                        # текущий неполный день — не морозим частичный трек
+            skipped_incomplete += 1
+            continue
         day_records = raw_store.load_daily(ds, de - 1, raw_path)
         if not day_records:
             no_aggregate_days += 1          # нет агрегатов → не знаем движения, не дёргаем
@@ -114,7 +127,8 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
             if time.monotonic() >= deadline:
                 stopped = True
                 break
-            if (str(tid), ds) in present:
+            here = (str(tid), ds) in present
+            if here and ds < fresh_after:   # старый завершённый день — заморожен (resume-skip)
                 skipped_present += 1
                 continue
             limiter.acquire()               # бережная пауза (поверх аккаунт-лимитера клиента)
@@ -127,7 +141,10 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
             norm = _normalize(raw)
             raw_store.upsert_track(str(tid), ds, norm, path=raw_path)  # чекпоинт (даже пустой)
             present.add((str(tid), ds))
-            pulled += 1
+            if here:
+                refreshed += 1              # свежий день перезабрали (опоздавшие точки)
+            else:
+                pulled += 1
         progress(2 + 96.0 * (di + 1) / len(day_starts),
                  f"Дни {di + 1}/{len(day_starts)} · треков добрано {pulled}")
         if stopped:
@@ -136,7 +153,8 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
     cov = raw_store.track_coverage(raw_path)
     msg = ("слайс завершён по таймауту — остаток добёрет следующий запуск"
            if stopped else "бэкфилл за окно завершён")
-    progress(100, f"Готово: {pulled} треков, {msg}")
-    return {"pulled": pulled, "skipped_present": skipped_present,
-            "idle_days": idle_days, "no_aggregate_days": no_aggregate_days,
-            "stopped_by_cap": stopped, "coverage": cov}
+    progress(100, f"Готово: {pulled} новых треков (+{refreshed} обновлено), {msg}")
+    return {"pulled": pulled, "refreshed": refreshed, "skipped_present": skipped_present,
+            "skipped_incomplete": skipped_incomplete, "idle_days": idle_days,
+            "no_aggregate_days": no_aggregate_days, "stopped_by_cap": stopped,
+            "coverage": cov}
