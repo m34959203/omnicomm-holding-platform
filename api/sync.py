@@ -120,26 +120,41 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
 def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
                          view_days: int = None, fuel_price_kzt: float = 0.0,
                          workers: int = 6, cache_path: str = cache.DEFAULT_PATH,
-                         raw_path: str = None) -> dict:
+                         raw_path: str = None, ingest_start_days: int = None,
+                         ingest_end_days: int = None, store_only: bool = False) -> dict:
     """Инкрементальный синк: довезти ТОЛЬКО свежие сутки в сырое хранилище и
     пересобрать снимок из НАКОПЛЕННОГО за view-окно (историю не перезабираем).
 
     Подходит для частого (каждые 3ч) обновления: тянем `ingest_days` последних
     суток (дёшево, чанками), кладём в `raw_store` (upsert по ТС×сутки/визиту —
     текущий день перезаписывается), затем строим снапшот из store за `view_days`.
-    Первый запуск с большим `ingest_days` = разовый backfill истории.
+
+    Backfill истории БЕЗ ПЕРЕКРЫТИЯ (помесячно): задать окно явным диапазоном
+    `ingest_start_days`..`ingest_end_days` (суток назад от now, start>end) +
+    `store_only=True` — тогда тянем ровно этот месяц ОДИН раз в `raw_store` и НЕ
+    пересобираем снимок. Так каждый месяц года забирается ровно однажды (не нагружаем
+    Omnicomm), а не трейлинг-окном `ingest_days`, которое перетягивало бы ранние месяцы.
     """
     from . import raw_store
     ingest_days = ingest_days or config.INGEST_WINDOW_DAYS
     view_days = view_days or config.VIEW_WINDOW_DAYS
     raw_path = raw_path or raw_store.DEFAULT_PATH
     now = int(time.time())
-    ingest = ReportPeriod(start=datetime.fromtimestamp(now - ingest_days * 86400, timezone.utc),
-                          end=datetime.fromtimestamp(now, timezone.utc))
+    if ingest_start_days is not None:        # явный диапазон месяца (backfill без перекрытия)
+        ing_start = now - ingest_start_days * 86400
+        ing_end = now - (ingest_end_days or 0) * 86400
+    else:                                    # трейлинг-окно свежих суток (штатный синк)
+        ing_start, ing_end = now - ingest_days * 86400, now
+    ingest = ReportPeriod(start=datetime.fromtimestamp(ing_start, timezone.utc),
+                          end=datetime.fromtimestamp(ing_end, timezone.utc))
+    win_days = max(1.0, (ing_end - ing_start) / 86400.0)
     view = ReportPeriod(start=datetime.fromtimestamp(now - view_days * 86400, timezone.utc),
                         end=datetime.fromtimestamp(now, timezone.utc))
     pkey = _period_key(view)
-    progress(2, f"Инкрементальный синк: довоз {ingest_days} сут, окно {view_days} сут")
+    progress(2, (f"Backfill агрегатов: окно {win_days:.0f} сут "
+                 f"({ingest_start_days}…{ingest_end_days or 0} сут назад), store-only"
+                 if store_only else
+                 f"Инкрементальный синк: довоз {ingest_days} сут, окно {view_days} сут"))
 
     client = _new_live_client()
     tree, vehicle_org = org_mod.build_from_omnicomm_tree(client.get_vehicle_tree())
@@ -149,14 +164,14 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
                 for v in tree_vehicles
                 if (v.get("terminal_id") or v.get("id") or v.get("uuid")) and v.get("name")}
 
-    # ДОВОЗ свежих суток (только ingest-окно) → сырое хранилище.
-    ing_budget = min(480 + ingest_days * 80, 3000)
+    # ДОВОЗ суток ingest-окна → сырое хранилище (бюджет масштабируем под длину окна).
+    ing_budget = min(480 + win_days * 80, 3000)
     payload = fetch.fetch_report_parallel(
         _new_live_client, ids, ingest,
         call=lambda c, ch, p: c.get_consolidated_report(ch, p),
         label="Довоз телеметрии", workers=workers, progress=progress,
-        pct_from=4, pct_to=50, best_effort=True, max_seconds=ing_budget,
-        window_days=config.REPORT_WINDOW_DAYS)
+        pct_from=4, pct_to=(90 if store_only else 50), best_effort=True,
+        max_seconds=ing_budget, window_days=config.REPORT_WINDOW_DAYS)
     new_daily = _dedup_records(data_loader._extract_records(payload))
     raw_store.upsert_daily(new_daily, raw_path)
     try:
@@ -164,12 +179,19 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
             _new_live_client, ids, ingest,
             call=lambda c, ch, p: c.get_geozones_report(ch, p),
             label="Довоз геозон", workers=workers, progress=progress,
-            pct_from=50, pct_to=60, best_effort=True,
-            max_seconds=min(120 + ingest_days * 20, 600),
+            pct_from=(90 if store_only else 50), pct_to=(98 if store_only else 60),
+            best_effort=True, max_seconds=min(120 + win_days * 20, 600),
             window_days=config.REPORT_WINDOW_DAYS)
         raw_store.upsert_visits(visits_new, raw_path)
     except Exception:  # noqa: BLE001
         pass
+
+    # store_only (помесячный backfill): снимок НЕ пересобираем — только наполнили архив.
+    if store_only:
+        cov = raw_store.coverage(raw_path)
+        progress(100, f"Месяц довезён в хранилище: +{len(new_daily)} суточных строк")
+        return {"ingested": len(new_daily), "store": cov, "store_only": True,
+                "window_days": int(win_days)}
 
     # ПЕРЕСБОРКА снимка из НАКОПЛЕННОГО store за view-окно (без обращений в Omnicomm).
     progress(64, "Сборка снимка из накопленных данных")

@@ -99,6 +99,11 @@ class IncrementalSyncRequest(BaseModel):
     view_days: Optional[int] = None     # окно пересборки снимка (None → config)
     fuel_price_kzt: float = 0.0
     workers: int = 6
+    # Помесячный backfill истории БЕЗ перекрытия: явный диапазон (суток назад, start>end)
+    # + store_only=True → тянем ровно месяц в raw_store, снимок не пересобираем.
+    ingest_start_days: Optional[int] = None
+    ingest_end_days: Optional[int] = None
+    store_only: bool = False
 
 
 @app.post("/api/sync/incremental")
@@ -115,7 +120,9 @@ def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
     def target(progress):
         return sync.run_incremental_sync(
             progress, ingest_days=req.ingest_days, view_days=req.view_days,
-            fuel_price_kzt=fuel, workers=workers)
+            fuel_price_kzt=fuel, workers=workers,
+            ingest_start_days=req.ingest_start_days,
+            ingest_end_days=req.ingest_end_days, store_only=req.store_only)
 
     return jobs.registry.start("sync", target).to_dict()
 
