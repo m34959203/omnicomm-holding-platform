@@ -84,7 +84,17 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
 - `jobs.py` — фоновые задачи + single-flight (без дублирующих синков).
 - `fetch.py` — параллельный забор из Omnicomm; `serialize.py` — сериализация снапшота.
 - `health.py` — секции Sensor Health и Контроль ТО; `excel.py` — Excel-выгрузка.
-- `vehicle.py` — карточка ТС (live-трек/телеметрия, TTL-кэш).
+- `vehicle.py` — карточка ТС: трек **сначала из локального архива** (`raw_store.fact_track`,
+  мгновенно, в Omnicomm не ходим), live-фолбэк с TTL-кэшем только если архив за окно пуст.
+- `raw_store.py` — сырое локальное хранилище SQLite: `fact_daily` (агрегат ТС×сутки),
+  `fact_visit` (визиты геозон), **`fact_track` (упрощённый GPS-трек ТС×сутки)** — основа
+  «весь год у себя». `upsert/load_track`, `tracks_present` (batch-skip), `track_coverage`,
+  `prune_before` (ретеншн агрегатов+визитов+треков). Тесты — `test_raw_store.py`, `test_track_backfill.py`.
+- `track_backfill.py` — **бережный бэкфилл треков за год** (`run_track_backfill`):
+  выделенный медленный лимит ≪ аккаунта, только дни с движением (по `fact_daily`),
+  резюмируемо+идемпотентно (чекпоинт=строка `fact_track`), кап-таймаут на слайс,
+  хранение упрощённой полилинией (`track_clean.simplify_track`). Эндпоинты `POST /api/track/backfill`
+  (single-flight), `GET /api/track/coverage`. Cron ночного до-вода — `docs/DEPLOY-holding.md`.
 - Тесты — `test_api_bridge.py`, `test_api_mode.py`, `test_health_excel.py`.
 
 ### Фронт `web/` (Next.js 16, static export → `web/out`)

@@ -120,6 +120,41 @@ def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
     return jobs.registry.start("sync", target).to_dict()
 
 
+class TrackBackfillRequest(BaseModel):
+    days: Optional[int] = None          # окно бэкфилла (None → config, 365)
+    min_km: Optional[float] = None      # порог пробега «день с движением» (None → config)
+    rate_per_min: Optional[float] = None  # бережный потолок забора (None → config)
+    max_seconds: Optional[float] = None   # кап на один слайс (None → config)
+
+
+@app.post("/api/track/backfill")
+def start_track_backfill(req: TrackBackfillRequest) -> dict:
+    """Бережный бэкфилл GPS-треков в локальный архив (см. api/track_backfill.py).
+
+    Годовой залив — `{"days":365}` короткими ночными слайсами (резюмируется);
+    ночной до-вод свежих суток — `{"days":2}`. Забор «капает» под выделенным
+    медленным лимитом, тянет только дни с движением, не нагружая сервер Omnicomm.
+    Single-flight — параллельные вызовы возвращают идущую задачу."""
+    running = jobs.registry.active("track_backfill")
+    if running is not None:
+        return {**running.to_dict(), "already_running": True}
+
+    def target(progress):
+        from . import track_backfill
+        return track_backfill.run_track_backfill(
+            progress, days=req.days, min_km=req.min_km,
+            rate_per_min=req.rate_per_min, max_seconds=req.max_seconds)
+
+    return jobs.registry.start("track_backfill", target).to_dict()
+
+
+@app.get("/api/track/coverage")
+def track_coverage() -> dict:
+    """Покрытие локального архива треков: суток/точек/ТС и диапазон дат."""
+    from . import raw_store
+    return raw_store.track_coverage()
+
+
 @app.get("/api/sync/{job_id}")
 def sync_status(job_id: str) -> dict:
     job = jobs.registry.get(job_id)

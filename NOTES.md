@@ -2,6 +2,26 @@
 
 > Чек-поинты по ходу, не в конце. Свежее — сверху.
 
+## 2026-06-24 — Локальный архив GPS-треков за год + бережный бэкфилл
+
+Требование: держать у себя весь год телеметрии (включая треки), карточка ТС за любой
+прошлый день — мгновенно из локального хранилища, бэкфилл — не нагружая сервер Omnicomm.
+
+- `raw_store.fact_track` — упрощённый трек ТС×сутки (рядом с `fact_daily`/`fact_visit`):
+  `upsert_track`/`load_track`/`has_track`/`tracks_present`/`track_coverage`; `prune_before`
+  чистит и треки.
+- `track_clean.simplify_track` — Дуглас-Пекер (ε≈9 м), объём ↓ в разы.
+- `api/track_backfill.py` `run_track_backfill` — бережно к Omnicomm: выделенный лимит
+  40/мин (≪170 аккаунта), только дни с движением (по `fact_daily`), резюмируемо+идемпотентно
+  (чекпоинт = строка `fact_track`), wall-clock-кап на слайс. Эндпоинты `POST /api/track/backfill`
+  (single-flight) + `GET /api/track/coverage`.
+- `api/vehicle.py` — карточка читает трек сначала из архива (`source="store"`, без Omnicomm),
+  live-фолбэк только если архив пуст.
+- Конфиг `TRACK_*` (`config.py`), cron ночного до-вода — `docs/DEPLOY-holding.md`.
+- Тесты +9 (`test_track_backfill.py`, `simplify_track` в `test_track_clean.py`) → **292 зелёных.**
+- Порядок заполнения: агрегаты за год (`incremental {"ingest_days":365}`) → треки слайсами
+  (`track/backfill {"days":365}`); ночной до-вод `{"days":2}`. Не закоммичено (ждёт слова Дмитрия).
+
 ## 2026-06-18 — Milestone 8: переход на БД (SQLite, star schema)
 
 **Сделано (`store.py`, диспетч в `org.py`, `tests/test_store.py` — 7 тестов; полный набор 177 зелёных):**

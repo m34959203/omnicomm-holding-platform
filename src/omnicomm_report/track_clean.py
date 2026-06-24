@@ -102,6 +102,53 @@ def clean_track(track: list[dict], *,
                             _max_reported(clean, max_speed_kmh))
 
 
+def simplify_track(points: list[dict], epsilon_deg: float = 8e-5) -> list[dict]:
+    """Упростить полилинию трека алгоритмом Дугласа-Пекера (для локального архива).
+
+    Выкидывает почти-коллинеарные точки, сохраняя форму маршрута в пределах
+    `epsilon_deg` (≈ перпендикулярное отклонение в градусах; 8e-5° ≈ 9 м). Первая
+    и последняя точки сохраняются всегда. Долгота масштабируется на cos(широты),
+    чтобы порог был ~изотропным по метрам. Объём хранения падает в разы, маршрут на
+    карте читается без изменений. Итеративная реализация — без рекурсии на длинных треках.
+    """
+    pts = [p for p in (points or [])
+           if p.get("latitude") is not None and p.get("longitude") is not None]
+    n = len(pts)
+    if n <= 2:
+        return list(pts)
+    mean_lat = sum(p["latitude"] for p in pts) / n
+    kx = math.cos(math.radians(mean_lat)) or 1e-6
+
+    def xy(p) -> tuple[float, float]:
+        return (p["longitude"] * kx, p["latitude"])
+
+    keep = [False] * n
+    keep[0] = keep[-1] = True
+    stack = [(0, n - 1)]
+    while stack:
+        a, b = stack.pop()
+        if b <= a + 1:
+            continue
+        ax, ay = xy(pts[a])
+        bx, by = xy(pts[b])
+        dx, dy = bx - ax, by - ay
+        denom = math.hypot(dx, dy)
+        dmax, idx = -1.0, -1
+        for i in range(a + 1, b):
+            px, py = xy(pts[i])
+            if denom == 0.0:                       # a и b совпали — берём расстояние до a
+                dist = math.hypot(px - ax, py - ay)
+            else:                                  # перпендикуляр точки до прямой a-b
+                dist = abs(dy * px - dx * py + bx * ay - by * ax) / denom
+            if dist > dmax:
+                dmax, idx = dist, i
+        if dmax > epsilon_deg and idx > a:
+            keep[idx] = True
+            stack.append((a, idx))
+            stack.append((idx, b))
+    return [p for i, p in enumerate(pts) if keep[i]]
+
+
 def reconcile_vehicle_speed(vehicle, track: list[dict], *,
                             max_speed_kmh: float = MAX_PLAUSIBLE_SPEED_KMH) -> TrackCleanResult:
     """Согласовать `vehicle.max_speed_kmh` с правдоподобной по очищенному треку.

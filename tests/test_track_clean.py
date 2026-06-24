@@ -97,3 +97,25 @@ def test_reconcile_keeps_plausible_max():
     track_clean.reconcile_vehicle_speed(v, CLEAN)
     assert v.max_speed_kmh == 90                       # достоверную не трогаем
     assert v.anomalies == []
+
+
+def test_simplify_drops_collinear_keeps_endpoints():
+    # Прямая линия: десяток точек по меридиану → должны остаться только концы.
+    line = [_pt(43.200 + i * 0.001, 76.900, i * 10, 40) for i in range(10)]
+    out = track_clean.simplify_track(line, epsilon_deg=8e-5)
+    assert out[0] is line[0] and out[-1] is line[-1]
+    assert len(out) == 2                                # коллинеарные выкинуты
+
+
+def test_simplify_keeps_corner():
+    # Резкий поворот посередине — угловую точку нельзя выкидывать.
+    pts = [_pt(43.200, 76.900, 0, 40),
+           _pt(43.210, 76.900, 10, 40),                 # поворот на восток
+           _pt(43.210, 76.920, 20, 40)]
+    out = track_clean.simplify_track(pts, epsilon_deg=8e-5)
+    assert len(out) == 3
+
+
+def test_simplify_short_track_noop():
+    assert len(track_clean.simplify_track(CLEAN[:2])) == 2
+    assert track_clean.simplify_track([]) == []

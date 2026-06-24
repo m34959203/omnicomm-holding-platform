@@ -78,9 +78,37 @@ def _period(start_ts: int, end_ts: int) -> ReportPeriod:
 
 
 def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
-    """Карточка-трек с TTL-кэшем (повторные открытия не пуляют в Omnicomm)."""
+    """Карточка-трек. СНАЧАЛА из локального архива (`raw_store.fact_track`) — мгновенно,
+    в Omnicomm не ходим (год треков уже добран бэкфиллом). Если архив за окно пуст
+    (ТС/период ещё не залит) — live-фолбэк с TTL-кэшем."""
+    from . import raw_store
+    stored = raw_store.load_track(terminal_id, start_ts, end_ts, raw_store.DEFAULT_PATH)
+    if stored:
+        return _payload_from_track(terminal_id, start_ts, end_ts, stored,
+                                   state={}, source="store")
     return _cached(f"track:{terminal_id}:{start_ts}:{end_ts}", TRACK_TTL_SEC,
                    lambda: _track_detail_live(terminal_id, start_ts, end_ts))
+
+
+def _payload_from_track(terminal_id: str, start_ts: int, end_ts: int,
+                        track: list[dict], *, state: dict, source: str) -> dict:
+    """Собрать ответ карточки из уже нормализованных точек {lat,lon,speed,ts,sat}."""
+    poly = _downsample(track, 1000)
+    speed_series = [{"ts": t["ts"], "speed": t["speed"]}
+                    for t in _downsample(track, 400)]
+    return {
+        "terminal_id": str(terminal_id),
+        "name": None,
+        "period": {"start_ts": start_ts, "end_ts": end_ts},
+        "track": poly,
+        "speed_series": speed_series,
+        "last": track[-1] if track else None,
+        "track_points": len(track),
+        "track_max_speed": round(max((t["speed"] for t in track), default=0), 1),
+        "state": state,
+        "telemetry": {},
+        "source": source,
+    }
 
 
 def telemetry(terminal_id: str, start_ts: int, end_ts: int) -> dict:
@@ -116,21 +144,8 @@ def _track_detail_live(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     track = [{"lat": p["latitude"], "lon": p["longitude"],
               "speed": p.get("speed") or 0, "ts": p.get("date"),
               "sat": p.get("satellitesCount")} for p in pts]
-    poly = _downsample(track, 1000)
-    speed_series = [{"ts": t["ts"], "speed": t["speed"]}
-                    for t in _downsample(track, 400)]
-    return {
-        "terminal_id": str(terminal_id),
-        "name": None,
-        "period": {"start_ts": start_ts, "end_ts": end_ts},
-        "track": poly,
-        "speed_series": speed_series,
-        "last": track[-1] if track else None,
-        "track_points": len(track),
-        "track_max_speed": round(max((t["speed"] for t in track), default=0), 1),
-        "state": state,
-        "telemetry": {},
-    }
+    return _payload_from_track(terminal_id, start_ts, end_ts, track,
+                               state=state, source="live")
 
 
 def _telemetry_live(terminal_id: str, start_ts: int, end_ts: int) -> dict:

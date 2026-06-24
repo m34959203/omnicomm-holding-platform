@@ -32,8 +32,17 @@ CREATE TABLE IF NOT EXISTS fact_visit (
     payload     TEXT NOT NULL,
     PRIMARY KEY (terminal_id, geozone, start_date)
 );
+CREATE TABLE IF NOT EXISTS fact_track (
+    terminal_id TEXT NOT NULL,
+    date        INTEGER NOT NULL,   -- начало суток (UTC-полночь), unix-сек
+    points      TEXT NOT NULL,      -- JSON-список упрощённых точек {lat,lon,speed,ts,sat}
+    point_count INTEGER NOT NULL,
+    max_speed   REAL,
+    PRIMARY KEY (terminal_id, date)
+);
 CREATE INDEX IF NOT EXISTS ix_daily_date ON fact_daily(date);
 CREATE INDEX IF NOT EXISTS ix_visit_date ON fact_visit(start_date);
+CREATE INDEX IF NOT EXISTS ix_track_date ON fact_track(date);
 """
 
 
@@ -104,6 +113,84 @@ def load_visits(start_ts: int, end_ts: int, path: str = DEFAULT_PATH) -> list[di
     return [json.loads(r[0]) for r in rows]
 
 
+def upsert_track(terminal_id: str, date: int, points: Any, *,
+                 max_speed: float = None, path: str = DEFAULT_PATH) -> int:
+    """Сохранить упрощённый трек ТС за сутки (upsert по ТС×сутки → перезапись дня).
+
+    `date` — начало суток (UTC-полночь). `points` — уже упрощённый/нормализованный
+    список точек. Это чекпоинт бэкфилла: наличие строки = трек за день добран,
+    повторный бэкфилл его пропускает (идемпотентность)."""
+    pts = list(points or [])
+    if max_speed is None:
+        max_speed = round(max((float(p.get("speed") or 0) for p in pts), default=0.0), 1)
+    with _connect(path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO fact_track(terminal_id,date,points,point_count,max_speed) "
+            "VALUES(?,?,?,?,?)",
+            (str(terminal_id), int(date), json.dumps(pts, ensure_ascii=False),
+             len(pts), float(max_speed)))
+        conn.commit()
+    return len(pts)
+
+
+def load_track(terminal_id: str, start_ts: int, end_ts: int,
+               path: str = DEFAULT_PATH) -> list[dict]:
+    """Точки трека ТС за период из локального архива (плоский список, по времени).
+
+    Мгновенно: чтения карточки идут СЮДА, в Omnicomm не ходят. Сутки выбираем по
+    их началу, пересекающему [start_ts, end_ts]."""
+    if not os.path.exists(path):
+        return []
+    lo = (int(start_ts) // 86400) * 86400
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT points FROM fact_track WHERE terminal_id=? AND date>=? AND date<=? "
+            "ORDER BY date",
+            (str(terminal_id), lo, int(end_ts))).fetchall()
+    out: list[dict] = []
+    for (blob,) in rows:
+        out.extend(json.loads(blob))
+    # на всякий случай по точному окну (день может частично выходить за период)
+    pts = [p for p in out if p.get("ts") is None or start_ts <= p["ts"] <= end_ts]
+    pts.sort(key=lambda p: p.get("ts") or 0)
+    return pts
+
+
+def has_track(terminal_id: str, date: int, path: str = DEFAULT_PATH) -> bool:
+    if not os.path.exists(path):
+        return False
+    with _connect(path) as conn:
+        r = conn.execute(
+            "SELECT 1 FROM fact_track WHERE terminal_id=? AND date=? LIMIT 1",
+            (str(terminal_id), int(date))).fetchone()
+    return r is not None
+
+
+def tracks_present(start_ts: int, end_ts: int, path: str = DEFAULT_PATH) -> set:
+    """Множество (terminal_id, date) уже сохранённых треков в окне — для batch-skip
+    бэкфилла (резюмируемость без перебора БД на каждый ТС×день)."""
+    if not os.path.exists(path):
+        return set()
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT terminal_id,date FROM fact_track WHERE date>=? AND date<=?",
+            (int(start_ts), int(end_ts))).fetchall()
+    return {(str(t), int(d)) for (t, d) in rows}
+
+
+def track_coverage(path: str = DEFAULT_PATH) -> dict:
+    """Диагностика архива треков: суток, точек, ТС и диапазон дат."""
+    if not os.path.exists(path):
+        return {"track_days": 0, "track_points": 0, "vehicles": 0,
+                "date_min": None, "date_max": None}
+    with _connect(path) as conn:
+        r = conn.execute(
+            "SELECT COUNT(*),COALESCE(SUM(point_count),0),COUNT(DISTINCT terminal_id),"
+            "MIN(date),MAX(date) FROM fact_track").fetchone()
+    return {"track_days": r[0], "track_points": r[1], "vehicles": r[2],
+            "date_min": r[3], "date_max": r[4]}
+
+
 def coverage(path: str = DEFAULT_PATH) -> dict:
     """Диагностика покрытия: сколько суточных строк/визитов и за какой диапазон."""
     if not os.path.exists(path):
@@ -121,5 +208,6 @@ def prune_before(cutoff_ts: int, path: str = DEFAULT_PATH) -> int:
     with _connect(path) as conn:
         n = conn.execute("DELETE FROM fact_daily WHERE date < ?", (int(cutoff_ts),)).rowcount
         conn.execute("DELETE FROM fact_visit WHERE start_date < ?", (int(cutoff_ts),))
+        conn.execute("DELETE FROM fact_track WHERE date < ?", (int(cutoff_ts),))
         conn.commit()
     return n
