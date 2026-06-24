@@ -34,13 +34,17 @@ logger = logging.getLogger(__name__)
 # --- Имена полей тела POST отчётов (сверено с developers.omnicomm.ru/api.yaml) -
 # consolidatedReport вызывается POST'ом с телом:
 #   {"vehicleIds": [<terminal_id int>], "timeBegin": <unix_sec>, "timeEnd": <unix_sec>}
-# Лимиты метода: ≤50 ТС и ≤31 суток на один запрос.
+# Размер запроса: ≤50 ТС и ≤31 суток на один запрос — ЭМПИРИЧЕСКИЙ предел (батч 50
+# эмпирически принимается сервером, прод-синк КАП на нём работает), НЕ официальный.
+# Официальная док-ция (doc.omnicomm.ru/.../rest_api/restriction) ограничивает ТОЛЬКО
+# частоту: 180 запросов/мин на пользователя; лимита на vehicleIds/период там НЕТ.
+# Эталонная конфигурация в той же док-ции советует батч 15 ID (см. config.MAX_IDS_PER_REQUEST).
 PARAM_VEHICLE_IDS = "vehicleIds"   # массив terminal_id (int) для consolidatedReport
 PARAM_TIME_BEGIN = "timeBegin"     # начало интервала, UNIX UTC, секунды
 PARAM_TIME_END = "timeEnd"         # конец интервала, UNIX UTC, секунды
 
-MAX_VEHICLES_PER_REPORT = 50       # лимит ТС в одном запросе consolidatedReport
-MAX_DAYS_PER_REPORT = 31           # лимит длины периода, суток
+MAX_VEHICLES_PER_REPORT = 50       # ТС в запросе consolidatedReport — эмпирич. предел (не офиц.)
+MAX_DAYS_PER_REPORT = 31           # длина периода, суток — эмпирич. предел (не офиц.)
 
 # Возможное имя поля кода ошибки Omnicomm в теле ответа (ТЗ §16).
 # TODO: сверить со Swagger — на разных методах поле называют по-разному.
