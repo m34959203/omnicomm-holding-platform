@@ -19,7 +19,7 @@ from typing import Callable, Optional
 
 from omnicomm_report import (
     classify, config, data_loader, demo_data, economics, geozones, org as org_mod,
-    recommendations, rollup, speeding, validator)
+    recommendations, reports, rollup, speeding, validator)
 from omnicomm_report.api_client import MAX_VEHICLES_PER_REPORT
 from omnicomm_report.models import ReportPeriod
 
@@ -181,7 +181,7 @@ def _demo_violations(vehicles) -> dict:
 
 def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
                        raw_geozones, sensor_section, maint_section,
-                       fuel_price_kzt, progress) -> dict:
+                       fuel_price_kzt, progress, visits=None) -> dict:
     """Собрать снапшот дашборда из готовых ТС/визитов (общий хвост для полного и
     инкрементального синка): роллапы KPI → экономика (вентиль доверия) →
     рекомендации СТ КАП → геозоны + секции качества данных и ТО."""
@@ -220,6 +220,10 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
         "geozones": serialize.geozone_features_json(raw_geozones),
         "sensor_health": sensor_section,
         "maintenance": maint_section,
+        # Отчётные формы паритета (kb-14): данные уже на руках.
+        "geozone_visits": reports.build_geozone_visits(
+            visits or [], {str(v.vehicle_id): v.name for v in vehicles}),
+        "fleet_table": reports.build_fleet_table(vehicles, vehicle_org),
     }
 
 
@@ -338,7 +342,7 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
         vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=view,
         violations=violations, raw_geozones=raw_geozones,
         sensor_section=sensor_section, maint_section=maint_section,
-        fuel_price_kzt=fuel_price_kzt, progress=progress)
+        fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits)
     synced_at = cache.save_snapshot(snapshot, period_key=pkey, label=view.human(),
                                     path=cache_path)
     progress(100, "Снимок обновлён (инкрементально)")
@@ -359,6 +363,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
     progress(2, "Инициализация")
 
     raw_geozones: list = []
+    visits: list = []         # визиты геозон (для формы «Посещение геозон»)
     sensor_section = None     # «Качество данных» (R7) — заполняется ниже
     maint_section = None      # «Контроль ТО» (R6)
     if demo:
@@ -437,7 +442,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=period,
         violations=violations, raw_geozones=raw_geozones,
         sensor_section=sensor_section, maint_section=maint_section,
-        fuel_price_kzt=fuel_price_kzt, progress=progress)
+        fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits)
     synced_at = cache.save_snapshot(snapshot, period_key=pkey,
                                     label=period.human(), path=cache_path)
     progress(100, "Снапшот сохранён")

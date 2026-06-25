@@ -248,6 +248,22 @@ def sensor_health(period_key: Optional[str] = Query(None)) -> dict:
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
+@app.get("/api/geozone-visits")
+def geozone_visits(period_key: Optional[str] = Query(None)) -> dict:
+    """Форма «Посещение геозон»: таблица визитов + сводка по геозонам (kb-14)."""
+    snap = _snapshot(period_key)
+    return {"geozone_visits": snap.get("geozone_visits"),
+            "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
+
+
+@app.get("/api/fleet-table")
+def fleet_table(period_key: Optional[str] = Query(None)) -> dict:
+    """Форма «Сводный / Работа группы»: посуточный итог по ТС (kb-14)."""
+    snap = _snapshot(period_key)
+    return {"fleet_table": snap.get("fleet_table"),
+            "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
+
+
 @app.get("/api/maintenance")
 def maintenance(period_key: Optional[str] = Query(None)) -> dict:
     """Контроль ТО (R6): наработка и статусы по парку."""
