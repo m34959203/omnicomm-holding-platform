@@ -28,7 +28,7 @@ export default function FleetTablePanel({
               <th className="py-2 pr-4 text-right">л/100</th>
               <th className="py-2 pr-4 text-right">{t("rep.moto")}</th>
               <th className="py-2 pr-4 text-right">{t("rep.maxspeed")}</th>
-              <th className="py-2 text-right">{t("tab.violations")}</th>
+              <th className="py-2 text-right">{t("rep.speeding_km")}</th>
             </tr>
           </thead>
           <tbody>
@@ -52,8 +52,8 @@ export default function FleetTablePanel({
                 <td className="data py-2 pr-4 text-right text-xs text-ink-dim">
                   {r.max_speed_kmh != null ? num(r.max_speed_kmh) : "—"}
                 </td>
-                <td className={`data py-2 text-right text-xs ${(r.speeding_count ?? 0) > 0 ? "text-warn" : "text-ink-faint"}`}>
-                  {r.speeding_count ? num(r.speeding_count) : "—"}
+                <td className={`data py-2 text-right text-xs ${(r.speeding_mileage_km ?? 0) > 0 ? "text-warn" : "text-ink-faint"}`}>
+                  {r.speeding_mileage_km != null ? num(r.speeding_mileage_km, 1) : "—"}
                 </td>
               </tr>
             ))}

@@ -27,11 +27,6 @@ export default function FuelPanel({
         <span className="data rounded border border-line px-2 py-1 text-xs text-ink-dim">
           {t("rep.delivery")} · <span className="text-ink">{num(data.totals.delivery_l)}</span>
         </span>
-        {data.totals.drain_l > 0 && (
-          <span className="data rounded border border-line px-2 py-1 text-xs text-warn">
-            {t("rep.drain")} · {num(data.totals.drain_l)}
-          </span>
-        )}
       </div>
 
       <div className="overflow-x-auto border-t border-line-strong">
@@ -40,7 +35,6 @@ export default function FuelPanel({
             <tr className="eyebrow text-left text-ink-faint">
               <th className="py-2 pr-4">{t("mt.vehicle")}</th>
               <th className="py-2 pr-4 text-right">{t("rep.refuel")}</th>
-              <th className="py-2 pr-4 text-right">{t("rep.drain")}</th>
               <th className="py-2 pr-4 text-right">{t("rep.delivery")}</th>
               <th className="py-2 text-right">{t("rep.volume")}</th>
             </tr>
@@ -52,9 +46,6 @@ export default function FuelPanel({
                 className="cursor-pointer border-t border-line hover:bg-surface">
                 <td className="truncate py-2 pr-4 text-ink">{r.vehicle}</td>
                 <td className="data py-2 pr-4 text-right text-xs text-ink-dim">{L(r.refuel_l)}</td>
-                <td className={`data py-2 pr-4 text-right text-xs ${(r.drain_l ?? 0) > 0 ? "text-warn" : "text-ink-faint"}`}>
-                  {L(r.drain_l)}
-                </td>
                 <td className="data py-2 pr-4 text-right text-xs text-ink-dim">{L(r.delivery_l)}</td>
                 <td className="data py-2 text-right text-xs text-ink-faint">
                   {r.vol_end_l != null ? `${L(r.vol_start_l, 0)} → ${L(r.vol_end_l, 0)}` : "—"}

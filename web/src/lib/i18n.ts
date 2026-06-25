@@ -105,6 +105,7 @@ const DICT: Record<string, { ru: string; kk: string }> = {
   "rep.drain": { ru: "Слив, л", kk: "Төгу, л" },
   "rep.delivery": { ru: "Выдача, л", kk: "Беру, л" },
   "rep.volume": { ru: "Бак (нач→кон)", kk: "Бак (баст→соң)" },
+  "rep.speeding_km": { ru: "Превыш., км", kk: "Асу, км" },
   "rep.geozone": { ru: "Геозона", kk: "Геозона" },
   "rep.enter": { ru: "Вход", kk: "Кіру" },
   "rep.duration": { ru: "Время", kk: "Уақыт" },

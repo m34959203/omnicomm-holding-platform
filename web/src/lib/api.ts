@@ -151,7 +151,7 @@ export interface FuelRow {
 }
 export interface FuelForm {
   count: number; rows: FuelRow[];
-  totals: { refuel_l: number; drain_l: number; delivery_l: number };
+  totals: { refuel_l: number; delivery_l: number };
 }
 
 export interface TrackPoint { lat: number; lon: number; speed: number; ts: number; sat?: number }

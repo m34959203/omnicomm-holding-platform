@@ -75,7 +75,8 @@ def test_fuel_form_volumes_and_events():
     assert out["count"] == 2                              # «Пустой» отброшен
     assert out["rows"][0]["vehicle_id"] == "1"           # больше движений топлива сверху
     assert out["rows"][0]["delivery_l"] == 1200.0 and out["rows"][0]["vol_end_l"] == 180.0
-    assert out["totals"] == {"refuel_l": 130.0, "drain_l": 15.0, "delivery_l": 1200.0}
+    assert out["totals"] == {"refuel_l": 130.0, "delivery_l": 1200.0}   # слив не в итогах (инвариант)
+    assert out["rows"][1]["drain_l"] == 15.0                            # но в строке есть (прозрачность)
 
 
 def test_fuel_fields_mapped_from_consolidated():

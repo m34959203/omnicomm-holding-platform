@@ -110,7 +110,7 @@ def build_fuel(vehicles: Any) -> dict:
     измеренный Omnicomm объём (нейтрально «слив, л», без обвинительной квалификации,
     бизнес-инвариант о «возможных сливах» соблюдён — это факт-замер, не спекуляция)."""
     rows: list[dict] = []
-    tot_refuel = tot_drain = tot_delivery = 0.0
+    tot_refuel = tot_delivery = 0.0
     for v in vehicles or []:
         refuel = getattr(v, "refuel_l", None)
         drain = getattr(v, "drain_l", None)
@@ -119,7 +119,6 @@ def build_fuel(vehicles: Any) -> dict:
         if not any(x for x in (refuel, drain, delivery, vend)):
             continue                                    # без топливных данных — пропуск
         tot_refuel += refuel or 0
-        tot_drain += drain or 0
         tot_delivery += delivery or 0
         rows.append({
             "vehicle_id": str(v.vehicle_id),
@@ -133,11 +132,12 @@ def build_fuel(vehicles: Any) -> dict:
             "vol_min_l": _num(getattr(v, "vol_min_l", None)),
             "vol_max_l": _num(getattr(v, "vol_max_l", None)),
         })
-    rows.sort(key=lambda r: (r["refuel_l"] or 0) + (r["drain_l"] or 0) + (r["delivery_l"] or 0),
-              reverse=True)
+    rows.sort(key=lambda r: (r["refuel_l"] or 0) + (r["delivery_l"] or 0), reverse=True)
+    # «слив» (drain_l) оставлен в строках для прозрачности, но НЕ в итогах: поле Omnicomm
+    # `draining` по факту ловит шум ДУТ (на парке слив > заправок — физически невозможно),
+    # бизнес-инвариант запрещает выводить «сливы» как обвинение (помечаем «требует проверки» в UI).
     return {"count": len(rows), "rows": rows[:5000],
-            "totals": {"refuel_l": round(tot_refuel, 1), "drain_l": round(tot_drain, 1),
-                       "delivery_l": round(tot_delivery, 1)}}
+            "totals": {"refuel_l": round(tot_refuel, 1), "delivery_l": round(tot_delivery, 1)}}
 
 
 def build_fleet_table(vehicles: Any, vehicle_org: Optional[dict] = None) -> dict:

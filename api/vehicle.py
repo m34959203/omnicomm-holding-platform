@@ -84,10 +84,27 @@ def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     from . import raw_store
     stored = raw_store.load_track(terminal_id, start_ts, end_ts, raw_store.DEFAULT_PATH)
     if stored:
+        # трек из архива (мгновенно), но текущее состояние (напряжение/зажигание/адрес) —
+        # лёгкий live-вызов /state, иначе карточка показывала пустые поля (регрессия store-read).
         return _payload_from_track(terminal_id, start_ts, end_ts, stored,
-                                   state={}, source="store")
+                                   state=_current_state(terminal_id), source="store")
     return _cached(f"track:{terminal_id}:{start_ts}:{end_ts}", TRACK_TTL_SEC,
                    lambda: _track_detail_live(terminal_id, start_ts, end_ts))
+
+
+def _current_state(terminal_id: str) -> dict:
+    """Текущее состояние ТС (напряжение/адрес/зажигание/скорость/топливо) — лёгкий /state,
+    с коротким TTL-кэшем. Сбой не валит карточку."""
+    def build() -> dict:
+        try:
+            st = _get_client().get_vehicle_state(str(terminal_id)) or {}
+        except Exception:  # noqa: BLE001
+            return {}
+        return {"voltage": st.get("voltage"), "address": st.get("address"),
+                "ignition": st.get("currentIgn"), "current_speed": st.get("currentSpeed"),
+                "current_fuel": st.get("currentFuel"), "last_data_ts": st.get("lastDataDate"),
+                "sat": st.get("lastGPSSat")}
+    return _cached(f"state:{terminal_id}", TRACK_TTL_SEC, build)
 
 
 def _payload_from_track(terminal_id: str, start_ts: int, end_ts: int,

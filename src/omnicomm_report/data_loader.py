@@ -416,11 +416,15 @@ def _aggregate_consolidated(
                 vehicle_id=vid, name=name, has_data=False,
                 no_data_reason=_no_data_reason(10)))
             continue
+        _mileage = round(b["mileage"], 1)
+        _fuel = round(b["fuel"], 1)
         vm = VehicleMetrics(
             vehicle_id=vid,
             name=name,
-            mileage_km=round(b["mileage"], 1),
-            fuel_l=round(b["fuel"], 1),
+            mileage_km=_mileage,
+            fuel_l=_fuel,
+            # расход на 100 км — считаем из тоталов (API не отдаёт готовым в агрегате)
+            fuel_per_100km=round(_fuel / _mileage * 100, 1) if _mileage and _mileage > 0 else None,
             fuel_idle_l=round(b["fuel_idle"], 1),
             engine_hours=round(b["worked_s"] / 3600, 2),
             engine_idle_hours=round(b["idle_s"] / 3600, 2),
