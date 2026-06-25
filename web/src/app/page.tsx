@@ -3,17 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard,
+  FleetTable,
   GeoFeature,
+  GeozoneVisits,
   Maintenance,
   Meta,
   Recommendation,
   SensorHealth,
+  ViolationsForm,
   getDashboard,
+  getFleetTable,
+  getGeozoneVisits,
   getGeozones,
   getMaintenance,
   getRecommendations,
   getSensorHealth,
   getSnapshots,
+  getViolationsForm,
 } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
@@ -37,6 +43,9 @@ export default function Page() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [sensor, setSensor] = useState<SensorHealth | null>(null);
   const [maint, setMaint] = useState<Maintenance | null>(null);
+  const [visits, setVisits] = useState<GeozoneVisits | null>(null);
+  const [fleet, setFleet] = useState<FleetTable | null>(null);
+  const [violForm, setViolForm] = useState<ViolationsForm | null>(null);
   const [vehicleOrg, setVehicleOrg] = useState<Record<string, string>>({});
   const [snaps, setSnaps] = useState<Meta[]>([]);
   const [periodKey, setPeriodKey] = useState<string>("");
@@ -56,8 +65,9 @@ export default function Page() {
       if (!list.length) { setState("empty"); return; }
       const k = (key ?? periodKey) || undefined;
       const d = await getDashboard(k);
-      const [g, r, sh, mt] = await Promise.all([
+      const [g, r, sh, mt, gv, ft, vf] = await Promise.all([
         getGeozones(k), getRecommendations(k), getSensorHealth(k), getMaintenance(k),
+        getGeozoneVisits(k), getFleetTable(k), getViolationsForm(k),
       ]);
       setDash(d);
       setGeos(g.geozones ?? []);
@@ -65,6 +75,9 @@ export default function Page() {
       setVehicleOrg(r.vehicle_org ?? {});
       setSensor(sh.sensor_health ?? null);
       setMaint(mt.maintenance ?? null);
+      setVisits(gv.geozone_visits ?? null);
+      setFleet(ft.fleet_table ?? null);
+      setViolForm(vf.violations ?? null);
       if (d.meta?.period_key) setPeriodKey(d.meta.period_key);
       setState("ready");
     } catch {
@@ -230,6 +243,8 @@ export default function Page() {
                 geos={geos} scoped={scoped} speedByOrg={speedByOrg}
                 focusId={focus}
                 onOpenVehicle={(id, name) => setVehCard({ id, name })}
+                visits={visits} fleet={fleet} violationsForm={violForm}
+                inScope={inScope}
               />
             </div>
           </div>

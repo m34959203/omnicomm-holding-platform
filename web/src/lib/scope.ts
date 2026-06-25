@@ -11,7 +11,8 @@ import {
   SensorHealth,
 } from "./api";
 
-export const TABS = ["money", "speed", "map", "quality", "maint"] as const;
+export const TABS = ["money", "speed", "map", "quality", "maint",
+  "visits", "fleet", "violations"] as const;
 export type TabKey = (typeof TABS)[number];
 
 export interface Signal {

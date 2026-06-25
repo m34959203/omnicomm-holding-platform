@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  Economics, GeoFeature, Maintenance, Recommendation, SensorHealth,
+  Economics, FleetTable, GeoFeature, GeozoneVisits, Maintenance,
+  Recommendation, SensorHealth, ViolationsForm,
 } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { TABS, TabKey } from "@/lib/scope";
@@ -10,12 +11,16 @@ import Recommendations from "./Recommendations";
 import SensorHealthPanel from "./SensorHealthPanel";
 import MaintenancePanel from "./MaintenancePanel";
 import GeozoneMap from "./GeozoneMap";
+import GeozoneVisitsPanel from "./GeozoneVisitsPanel";
+import FleetTablePanel from "./FleetTablePanel";
+import ViolationsPanel from "./ViolationsPanel";
 
 // Домен-табы: глубина по доменам, контент по активному табу. Карта монтируется
 // только когда её таб активен (Яндекс тяжёлый). EconomicsPanel/GeozoneMap —
 // холдингового уровня (клиентски не скоупятся) → бейдж при выбранном scope.
 export default function DomainTabs({
   tab, onTab, eco, recs, sensor, maint, geos, scoped, speedByOrg = [], focusId, onOpenVehicle,
+  visits, fleet, violationsForm, inScope,
 }: {
   tab: TabKey;
   onTab: (t: TabKey) => void;
@@ -28,6 +33,10 @@ export default function DomainTabs({
   speedByOrg?: { label: string; value: number }[];
   focusId?: string | null;
   onOpenVehicle?: (id: string, name?: string) => void;
+  visits?: GeozoneVisits | null;
+  fleet?: FleetTable | null;
+  violationsForm?: ViolationsForm | null;
+  inScope?: (id: string) => boolean;
 }) {
   const { t } = useLang();
 
@@ -71,6 +80,15 @@ export default function DomainTabs({
             <GeozoneMap features={geos} />
           </>
         )}
+        {tab === "visits" && (visits
+          ? <GeozoneVisitsPanel data={visits} inScope={inScope} onOpenVehicle={onOpenVehicle} />
+          : <Empty t={t} />)}
+        {tab === "fleet" && (fleet
+          ? <FleetTablePanel data={fleet} inScope={inScope} onOpenVehicle={onOpenVehicle} />
+          : <Empty t={t} />)}
+        {tab === "violations" && (violationsForm
+          ? <ViolationsPanel data={violationsForm} inScope={inScope} onOpenVehicle={onOpenVehicle} />
+          : <Empty t={t} />)}
       </div>
     </section>
   );

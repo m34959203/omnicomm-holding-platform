@@ -117,6 +117,32 @@ export interface Maintenance {
   note: string;
 }
 
+// ---- Отчётные формы паритета (kb-14) ----
+export interface VisitRow {
+  vehicle_id: string; vehicle: string; geozone: string;
+  enter_ts: number | null; exit_ts: number | null; duration_s: number;
+  max_speed_kmh: number | null; mileage_km: number | null; speeding_km: number | null;
+}
+export interface GeozoneSummary { geozone: string; visits: number; vehicles: number; total_hours: number }
+export interface GeozoneVisits { count: number; rows: VisitRow[]; by_geozone: GeozoneSummary[] }
+
+export interface FleetRow {
+  vehicle_id: string; vehicle: string; org_id: string | null;
+  mileage_km: number | null; fuel_l: number | null; fuel_per_100km: number | null;
+  fuel_idle_l: number | null; engine_hours: number | null; engine_idle_hours: number | null;
+  max_speed_kmh: number | null; speeding_count: number | null; speeding_mileage_km: number | null;
+  has_data: boolean;
+}
+export interface FleetTable { count: number; rows: FleetRow[] }
+
+export interface ViolationRow {
+  vehicle_id: string; vehicle: string; type: string; geozone: string | null;
+  limit_kmh: number | null; max_speed_kmh: number | null; excess_kmh: number | null;
+  start_ts: number | null; severity: string | null; koap_article: string | null;
+  fine_kzt: number | null; detail?: string;
+}
+export interface ViolationsForm { count: number; rows: ViolationRow[]; by_type: Record<string, number> }
+
 export interface TrackPoint { lat: number; lon: number; speed: number; ts: number; sat?: number }
 export interface VehicleDetail {
   terminal_id: string;
@@ -187,6 +213,18 @@ export const getSensorHealth = (key?: string) =>
 export const getMaintenance = (key?: string) =>
   get<{ maintenance: Maintenance | null; meta: Meta | null }>(
     `/api/maintenance${key ? `?period_key=${key}` : ""}`,
+  );
+export const getGeozoneVisits = (key?: string) =>
+  get<{ geozone_visits: GeozoneVisits | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
+    `/api/geozone-visits${key ? `?period_key=${key}` : ""}`,
+  );
+export const getFleetTable = (key?: string) =>
+  get<{ fleet_table: FleetTable | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
+    `/api/fleet-table${key ? `?period_key=${key}` : ""}`,
+  );
+export const getViolationsForm = (key?: string) =>
+  get<{ violations: ViolationsForm | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
+    `/api/violations${key ? `?period_key=${key}` : ""}`,
   );
 // Прямая ссылка на Excel-выгрузку (скачивание браузером).
 export const excelUrl = (key?: string) =>
