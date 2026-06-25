@@ -62,3 +62,28 @@ def test_violations_geozone_and_aggregate():
     agg = next(r for r in out["rows"] if r["vehicle_id"] == "2")
     assert agg["type"] == "Превышение скорости" and "4 эпизодов" in agg["detail"]
     assert out["by_type"]["Превышение в геозоне"] == 1
+
+
+def test_fuel_form_volumes_and_events():
+    vs = [
+        VehicleMetrics(vehicle_id="1", name="АТЗ-1", delivery_l=1200.0, refuel_l=50.0,
+                       vol_start_l=300.0, vol_end_l=180.0, vol_min_l=120.0, vol_max_l=400.0),
+        VehicleMetrics(vehicle_id="2", name="Камаз", refuel_l=80.0, drain_l=15.0, fuel_l=60.0),
+        VehicleMetrics(vehicle_id="3", name="Пустой"),   # без топливных данных → пропуск
+    ]
+    out = reports.build_fuel(vs)
+    assert out["count"] == 2                              # «Пустой» отброшен
+    assert out["rows"][0]["vehicle_id"] == "1"           # больше движений топлива сверху
+    assert out["rows"][0]["delivery_l"] == 1200.0 and out["rows"][0]["vol_end_l"] == 180.0
+    assert out["totals"] == {"refuel_l": 130.0, "drain_l": 15.0, "delivery_l": 1200.0}
+
+
+def test_fuel_fields_mapped_from_consolidated():
+    from omnicomm_report import data_loader
+    recs = [{"consolidatedReport": {"vehicleId": 7, "date": 1000,
+             "fuel": {"refuelling": 500, "draining": 100, "delivery": 2000,
+                      "startVolume": 3000, "endVolume": 1500, "minVolume": 800, "maxVolume": 4000}}}]
+    vs = data_loader._aggregate_consolidated(recs, {"7": "АТЗ"})
+    v = vs[0]
+    assert v.refuel_l == 50.0 and v.drain_l == 10.0 and v.delivery_l == 200.0   # дл→л
+    assert v.vol_start_l == 300.0 and v.vol_end_l == 150.0 and v.vol_max_l == 400.0

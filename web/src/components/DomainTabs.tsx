@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Economics, FleetTable, GeoFeature, GeozoneVisits, Maintenance,
+  Economics, FleetTable, FuelForm, GeoFeature, GeozoneVisits, Maintenance,
   Recommendation, SensorHealth, ViolationsForm,
 } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
@@ -14,13 +14,14 @@ import GeozoneMap from "./GeozoneMap";
 import GeozoneVisitsPanel from "./GeozoneVisitsPanel";
 import FleetTablePanel from "./FleetTablePanel";
 import ViolationsPanel from "./ViolationsPanel";
+import FuelPanel from "./FuelPanel";
 
 // Домен-табы: глубина по доменам, контент по активному табу. Карта монтируется
 // только когда её таб активен (Яндекс тяжёлый). EconomicsPanel/GeozoneMap —
 // холдингового уровня (клиентски не скоупятся) → бейдж при выбранном scope.
 export default function DomainTabs({
   tab, onTab, eco, recs, sensor, maint, geos, scoped, speedByOrg = [], focusId, onOpenVehicle,
-  visits, fleet, violationsForm, inScope,
+  visits, fleet, violationsForm, fuel, inScope,
 }: {
   tab: TabKey;
   onTab: (t: TabKey) => void;
@@ -36,6 +37,7 @@ export default function DomainTabs({
   visits?: GeozoneVisits | null;
   fleet?: FleetTable | null;
   violationsForm?: ViolationsForm | null;
+  fuel?: FuelForm | null;
   inScope?: (id: string) => boolean;
 }) {
   const { t } = useLang();
@@ -88,6 +90,9 @@ export default function DomainTabs({
           : <Empty t={t} />)}
         {tab === "violations" && (violationsForm
           ? <ViolationsPanel data={violationsForm} inScope={inScope} onOpenVehicle={onOpenVehicle} />
+          : <Empty t={t} />)}
+        {tab === "fuel" && (fuel
+          ? <FuelPanel data={fuel} inScope={inScope} onOpenVehicle={onOpenVehicle} />
           : <Empty t={t} />)}
       </div>
     </section>

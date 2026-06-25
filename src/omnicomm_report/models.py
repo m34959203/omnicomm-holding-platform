@@ -70,6 +70,14 @@ class VehicleMetrics:
     max_speed_kmh: Optional[float] = None         # максимальная скорость
     speeding_count: Optional[int] = None          # число превышений скорости
     speeding_mileage_km: Optional[float] = None   # пробег с превышением, км
+    # топливные формы (из fuel-блока сводного): заправки/сливы/выдача + объём бака, л
+    refuel_l: Optional[float] = None              # заправки за период, л
+    drain_l: Optional[float] = None               # сливы (измеренные), л
+    delivery_l: Optional[float] = None            # выдача топлива (АТЗ), л
+    vol_start_l: Optional[float] = None           # объём бака на начало, л
+    vol_end_l: Optional[float] = None             # объём бака на конец, л
+    vol_min_l: Optional[float] = None             # мин объём бака за период, л
+    vol_max_l: Optional[float] = None             # макс объём бака за период, л
 
     # --- Модуль «Работа на погрузке» (спецтехника/мусоровозы) ---
     # method: 'sensor' (датчик доп.входа, ФАКТ) | 'rpm' (оценка по оборотам, ≈)

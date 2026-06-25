@@ -256,6 +256,14 @@ def geozone_visits(period_key: Optional[str] = Query(None)) -> dict:
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
+@app.get("/api/fuel")
+def fuel(period_key: Optional[str] = Query(None)) -> dict:
+    """Форма «Топливо»: заправки/сливы/выдача + объём бака по ТС (kb-14)."""
+    snap = _snapshot(period_key)
+    return {"fuel": snap.get("fuel"),
+            "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
+
+
 @app.get("/api/violations")
 def violations(period_key: Optional[str] = Query(None)) -> dict:
     """Форма «Нарушения»: единая таблица нарушений по парку (kb-14)."""

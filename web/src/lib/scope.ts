@@ -12,7 +12,7 @@ import {
 } from "./api";
 
 export const TABS = ["money", "speed", "map", "quality", "maint",
-  "visits", "fleet", "violations"] as const;
+  "visits", "fleet", "violations", "fuel"] as const;
 export type TabKey = (typeof TABS)[number];
 
 export interface Signal {

@@ -330,6 +330,10 @@ def _aggregate_consolidated(
             "idling_rpm_s": 0.0, "normal_rpm_s": 0.0, "under_load_rpm_s": 0.0,
             "uni_on_s": 0.0, "uni_fuel_l": 0.0, "uni_hour_cons_l": None,
             "uni_type": None, "uni_present": False,
+            # топливные формы (Заправки/Сливы/Выдача/Объём бака) — из fuel-блока сводного
+            "refuel": 0.0, "drain": 0.0, "delivery": 0.0,
+            "vol_start": None, "vol_end": None, "vol_min": None, "vol_max": None,
+            "vol_start_date": None, "vol_end_date": None,
         })
 
     for rec in records:
@@ -358,11 +362,27 @@ def _aggregate_consolidated(
             ("under_load_rpm_s", "workedUnderLoadRPM", mv, 1),
             ("fuel", "fuelConsumption", fuel, DL),       # дл → л
             ("fuel_idle", "fuelConsumptionWOMovement", fuel, DL),  # дл → л
+            ("refuel", "refuelling", fuel, DL),          # заправки, дл → л
+            ("drain", "draining", fuel, DL),             # сливы (измеренные), дл → л
+            ("delivery", "delivery", fuel, DL),          # выдача (АТЗ), дл → л
         ):
             val = _fnum(sub.get(src))
             if val is not None:
                 b[key] += val / div
                 b["any"] = True
+        # Объём бака — суточные граничные значения (не сумма): старт=по ранней дате,
+        # конец=по поздней, мин/макс — по всему окну. Дл → л.
+        _d = cr.get("date") or 0
+        _sv, _ev = _fnum(fuel.get("startVolume")), _fnum(fuel.get("endVolume"))
+        _mn, _mx = _fnum(fuel.get("minVolume")), _fnum(fuel.get("maxVolume"))
+        if _sv is not None and (b["vol_start_date"] is None or _d <= b["vol_start_date"]):
+            b["vol_start"], b["vol_start_date"] = _sv / DL, _d
+        if _ev is not None and (b["vol_end_date"] is None or _d >= b["vol_end_date"]):
+            b["vol_end"], b["vol_end_date"] = _ev / DL, _d
+        if _mn is not None:
+            b["vol_min"] = _mn / DL if b["vol_min"] is None else min(b["vol_min"], _mn / DL)
+        if _mx is not None:
+            b["vol_max"] = _mx / DL if b["vol_max"] is None else max(b["vol_max"], _mx / DL)
         ms = _fnum(mv.get("maxSpeed"))
         # Отбрасываем сбойные значения GPS (напр. 655 км/ч) — иначе портят максимум.
         if ms is not None and 0 < ms <= MAX_PLAUSIBLE_SPEED_KMH:
@@ -406,6 +426,13 @@ def _aggregate_consolidated(
             engine_idle_hours=round(b["idle_s"] / 3600, 2),
             speeding_mileage_km=round(b["speed_km"], 1),
             max_speed_kmh=b["max_speed"],
+            refuel_l=round(b["refuel"], 1) if b["refuel"] else None,
+            drain_l=round(b["drain"], 1) if b["drain"] else None,
+            delivery_l=round(b["delivery"], 1) if b["delivery"] else None,
+            vol_start_l=round(b["vol_start"], 1) if b["vol_start"] is not None else None,
+            vol_end_l=round(b["vol_end"], 1) if b["vol_end"] is not None else None,
+            vol_min_l=round(b["vol_min"], 1) if b["vol_min"] is not None else None,
+            vol_max_l=round(b["vol_max"], 1) if b["vol_max"] is not None else None,
             raw={"days": len(b["raw"])},
         )
         # Модуль «Работа на погрузке»: классификация источника + метрики.

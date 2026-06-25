@@ -143,6 +143,17 @@ export interface ViolationRow {
 }
 export interface ViolationsForm { count: number; rows: ViolationRow[]; by_type: Record<string, number> }
 
+export interface FuelRow {
+  vehicle_id: string; vehicle: string;
+  refuel_l: number | null; drain_l: number | null; delivery_l: number | null;
+  fuel_l: number | null; vol_start_l: number | null; vol_end_l: number | null;
+  vol_min_l: number | null; vol_max_l: number | null;
+}
+export interface FuelForm {
+  count: number; rows: FuelRow[];
+  totals: { refuel_l: number; drain_l: number; delivery_l: number };
+}
+
 export interface TrackPoint { lat: number; lon: number; speed: number; ts: number; sat?: number }
 export interface VehicleDetail {
   terminal_id: string;
@@ -225,6 +236,10 @@ export const getFleetTable = (key?: string) =>
 export const getViolationsForm = (key?: string) =>
   get<{ violations: ViolationsForm | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
     `/api/violations${key ? `?period_key=${key}` : ""}`,
+  );
+export const getFuel = (key?: string) =>
+  get<{ fuel: FuelForm | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
+    `/api/fuel${key ? `?period_key=${key}` : ""}`,
   );
 // Прямая ссылка на Excel-выгрузку (скачивание браузером).
 export const excelUrl = (key?: string) =>

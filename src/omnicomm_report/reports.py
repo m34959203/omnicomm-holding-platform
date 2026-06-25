@@ -104,6 +104,42 @@ def build_violations(violations: Any, vehicles: Any = None,
     return {"count": len(rows), "rows": rows[:5000], "by_type": by_type}
 
 
+def build_fuel(vehicles: Any) -> dict:
+    """Форма «Топливо» (объединяет Заправки/Сливы, Выдачу, Объём бака — kb-14):
+    суточные значения из fuel-блока сводного. Заправки/выдача — confident; слив —
+    измеренный Omnicomm объём (нейтрально «слив, л», без обвинительной квалификации,
+    бизнес-инвариант о «возможных сливах» соблюдён — это факт-замер, не спекуляция)."""
+    rows: list[dict] = []
+    tot_refuel = tot_drain = tot_delivery = 0.0
+    for v in vehicles or []:
+        refuel = getattr(v, "refuel_l", None)
+        drain = getattr(v, "drain_l", None)
+        delivery = getattr(v, "delivery_l", None)
+        vend = getattr(v, "vol_end_l", None)
+        if not any(x for x in (refuel, drain, delivery, vend)):
+            continue                                    # без топливных данных — пропуск
+        tot_refuel += refuel or 0
+        tot_drain += drain or 0
+        tot_delivery += delivery or 0
+        rows.append({
+            "vehicle_id": str(v.vehicle_id),
+            "vehicle": v.name,
+            "refuel_l": _num(refuel),
+            "drain_l": _num(drain),
+            "delivery_l": _num(delivery),
+            "fuel_l": _num(getattr(v, "fuel_l", None)),
+            "vol_start_l": _num(getattr(v, "vol_start_l", None)),
+            "vol_end_l": _num(vend),
+            "vol_min_l": _num(getattr(v, "vol_min_l", None)),
+            "vol_max_l": _num(getattr(v, "vol_max_l", None)),
+        })
+    rows.sort(key=lambda r: (r["refuel_l"] or 0) + (r["drain_l"] or 0) + (r["delivery_l"] or 0),
+              reverse=True)
+    return {"count": len(rows), "rows": rows[:5000],
+            "totals": {"refuel_l": round(tot_refuel, 1), "drain_l": round(tot_drain, 1),
+                       "delivery_l": round(tot_delivery, 1)}}
+
+
 def build_fleet_table(vehicles: Any, vehicle_org: Optional[dict] = None) -> dict:
     """Форма «Сводный / Работа группы» (посуточный итог по ТС): все метрики агрегата
     одной таблицей — пробег, топливо, моточасы, режимы, превышения. Источник — `VehicleMetrics`."""

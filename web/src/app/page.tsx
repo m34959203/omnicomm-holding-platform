@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard,
   FleetTable,
+  FuelForm,
   GeoFeature,
   GeozoneVisits,
   Maintenance,
@@ -13,6 +14,7 @@ import {
   ViolationsForm,
   getDashboard,
   getFleetTable,
+  getFuel,
   getGeozoneVisits,
   getGeozones,
   getMaintenance,
@@ -46,6 +48,7 @@ export default function Page() {
   const [visits, setVisits] = useState<GeozoneVisits | null>(null);
   const [fleet, setFleet] = useState<FleetTable | null>(null);
   const [violForm, setViolForm] = useState<ViolationsForm | null>(null);
+  const [fuel, setFuel] = useState<FuelForm | null>(null);
   const [vehicleOrg, setVehicleOrg] = useState<Record<string, string>>({});
   const [snaps, setSnaps] = useState<Meta[]>([]);
   const [periodKey, setPeriodKey] = useState<string>("");
@@ -65,9 +68,9 @@ export default function Page() {
       if (!list.length) { setState("empty"); return; }
       const k = (key ?? periodKey) || undefined;
       const d = await getDashboard(k);
-      const [g, r, sh, mt, gv, ft, vf] = await Promise.all([
+      const [g, r, sh, mt, gv, ft, vf, fu] = await Promise.all([
         getGeozones(k), getRecommendations(k), getSensorHealth(k), getMaintenance(k),
-        getGeozoneVisits(k), getFleetTable(k), getViolationsForm(k),
+        getGeozoneVisits(k), getFleetTable(k), getViolationsForm(k), getFuel(k),
       ]);
       setDash(d);
       setGeos(g.geozones ?? []);
@@ -78,6 +81,7 @@ export default function Page() {
       setVisits(gv.geozone_visits ?? null);
       setFleet(ft.fleet_table ?? null);
       setViolForm(vf.violations ?? null);
+      setFuel(fu.fuel ?? null);
       if (d.meta?.period_key) setPeriodKey(d.meta.period_key);
       setState("ready");
     } catch {
@@ -243,7 +247,7 @@ export default function Page() {
                 geos={geos} scoped={scoped} speedByOrg={speedByOrg}
                 focusId={focus}
                 onOpenVehicle={(id, name) => setVehCard({ id, name })}
-                visits={visits} fleet={fleet} violationsForm={violForm}
+                visits={visits} fleet={fleet} violationsForm={violForm} fuel={fuel}
                 inScope={inScope}
               />
             </div>
