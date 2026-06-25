@@ -426,8 +426,13 @@ class OmnicommClient:
 
         Возвращает список корневых узлов как есть. ТС лежат вложенно в
         `children[].objects[]` — для плоского списка используйте `list_vehicles`.
+
+        Тяжёлый эндпоинт (~2000 ТС): длинный таймаут + больше попыток с backoff —
+        под нагрузкой копия отвечает медленно (деградация 24.06 уходила в таймаут 30с).
         """
-        data = self._request("GET", "vehicle_tree")
+        data = self._request("GET", "vehicle_tree",
+                             timeout=config.TREE_TIMEOUT,
+                             max_retries=config.TREE_MAX_RETRIES)
         if isinstance(data, dict):
             return [data]
         if isinstance(data, list):

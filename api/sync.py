@@ -19,7 +19,7 @@ from omnicomm_report import (
     recommendations, rollup, speeding, validator)
 from omnicomm_report.models import ReportPeriod
 
-from . import cache, fetch, health, serialize
+from . import cache, fetch, fleet_cache, health, serialize
 
 ProgressCb = Callable[[float, str], None]
 
@@ -157,9 +157,9 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
                  f"Инкрементальный синк: довоз {ingest_days} сут, окно {view_days} сут"))
 
     client = _new_live_client()
-    tree, vehicle_org = org_mod.build_from_omnicomm_tree(client.get_vehicle_tree())
+    tree, vehicle_org = org_mod.build_from_omnicomm_tree(fleet_cache.vehicle_tree(client))
     ids = list(vehicle_org.keys())
-    tree_vehicles = client.list_vehicles() or []
+    tree_vehicles = fleet_cache.list_vehicles(client)
     name_map = {str(v.get("terminal_id") or v.get("id") or v.get("uuid")): v.get("name")
                 for v in tree_vehicles
                 if (v.get("terminal_id") or v.get("id") or v.get("uuid")) and v.get("name")}
@@ -253,7 +253,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         # а не из устаревшего реестра на диске.
         client = _new_live_client()
         progress(4, "Построение иерархии организаций из дерева КАП")
-        tree, vehicle_org = org_mod.build_from_omnicomm_tree(client.get_vehicle_tree())
+        tree, vehicle_org = org_mod.build_from_omnicomm_tree(fleet_cache.vehicle_tree(client))
         ids = list(vehicle_org.keys())
         # Бюджет таймаута масштабируем под длину периода — чтобы месяц успел
         # собраться (чанкинг по REPORT_WINDOW_DAYS делает каждый запрос быстрым,
@@ -269,7 +269,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
             label="Загрузка телеметрии", workers=workers, progress=progress,
             pct_from=5, pct_to=68, best_effort=True, max_seconds=cons_budget,
             window_days=config.REPORT_WINDOW_DAYS)
-        tree_vehicles = client.list_vehicles() or []
+        tree_vehicles = fleet_cache.list_vehicles(client)
         name_map = {str(v.get("terminal_id") or v.get("id") or v.get("uuid")): v.get("name")
                     for v in tree_vehicles
                     if (v.get("terminal_id") or v.get("id") or v.get("uuid")) and v.get("name")}

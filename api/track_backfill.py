@@ -34,7 +34,7 @@ from omnicomm_report import config, data_loader, track_clean
 from omnicomm_report.models import ReportPeriod
 from omnicomm_report.rate_limit import RateLimiter
 
-from . import raw_store
+from . import fleet_cache, raw_store
 from .sync import _dedup_records, _new_live_client
 
 ProgressCb = Callable[[float, str], None]
@@ -108,7 +108,7 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
     workers = workers or config.TRACK_BACKFILL_WORKERS
     lister = client or make_client()
     if name_map is None:
-        tree_vehicles = lister.list_vehicles() or []
+        tree_vehicles = fleet_cache.list_vehicles(lister)
         name_map = {str(v.get("terminal_id") or v.get("id") or v.get("uuid")): v.get("name")
                     for v in tree_vehicles
                     if (v.get("terminal_id") or v.get("id") or v.get("uuid"))}

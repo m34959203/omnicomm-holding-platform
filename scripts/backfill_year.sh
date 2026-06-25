@@ -8,6 +8,8 @@ cd /home/ubuntu/omnicomm-holding-platform
 API=127.0.0.1:8810
 MONTHS=${MONTHS:-12}
 TRACK_CAP=${TRACK_CAP:-43200}      # до 12ч на месячный слайс треков (хватит/добьёт след. месяц)
+RATE=${RATE:-50}                   # щадящий темп треков/мин (≤ config; безопасно для копии)
+WORKERS=${WORKERS:-4}              # пул воркеров забора треков
 
 log(){ echo "[$(date '+%F %T')] $*"; }
 jget(){ python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('$1',''))" 2>/dev/null; }
@@ -44,7 +46,7 @@ for m in $(seq 1 "$MONTHS"); do
   s=$((m*31)); e=$(((m-1)*31)); d=$((m*31)); [ $d -gt 365 ] && d=365
   log "----- Месяц $m/$MONTHS (сутки ${s}..${e} назад) -----"
   post_wait /api/sync/incremental "{\"store_only\":true,\"ingest_start_days\":$s,\"ingest_end_days\":$e}" "Агрегаты M$m"
-  post_wait /api/track/backfill "{\"days\":$d,\"max_seconds\":$TRACK_CAP}" "Треки M$m"
+  post_wait /api/track/backfill "{\"days\":$d,\"max_seconds\":$TRACK_CAP,\"rate_per_min\":$RATE,\"workers\":$WORKERS}" "Треки M$m"
   log "Покрытие треков после M$m: $(curl -s "$API/api/track/coverage")"
 done
 log "=========== BACKFILL ГОДА ЗАВЕРШЁН ==========="
