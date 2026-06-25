@@ -63,6 +63,47 @@ def build_geozone_visits(visits: Any, name_map: Optional[dict] = None,
     return {"count": len(rows), "rows": rows[:limit], "by_geozone": summary[:300]}
 
 
+def build_violations(violations: Any, vehicles: Any = None,
+                     name_map: Optional[dict] = None) -> dict:
+    """Форма «Нарушения»: единая таблица нарушений по парку. Геозонные превышения
+    (детально, со статьёй КоАП/ставкой СТ КАП) + агрегатный флаг превышения скорости
+    для ТС без геозонной детализации. Источник — `speeding.detect_from_visits` + агрегат."""
+    name_map = name_map or {}
+    by_v = {str(v.vehicle_id): v for v in (vehicles or [])}
+    rows: list[dict] = []
+    for tid, vios in (violations or {}).items():
+        for vio in vios or []:
+            rows.append({
+                "vehicle_id": str(tid),
+                "vehicle": name_map.get(str(tid)) or str(tid),
+                "type": "Превышение в геозоне",
+                "geozone": getattr(vio, "geozone", None),
+                "limit_kmh": getattr(vio, "limit", None),
+                "max_speed_kmh": _num(getattr(vio, "max_speed", None)),
+                "excess_kmh": _num(getattr(vio, "excess", None)),
+                "start_ts": getattr(vio, "start_ts", None) or None,
+                "severity": getattr(vio, "st_kap_severity", None),
+                "koap_article": getattr(vio, "koap_article", None),
+                "fine_kzt": getattr(vio, "fine_kzt", None),
+            })
+    seen = set(str(t) for t in (violations or {}))
+    for tid, v in by_v.items():                     # агрегатный флаг для ТС без геозон-детализации
+        if (getattr(v, "speeding_count", 0) or 0) > 0 and tid not in seen:
+            rows.append({
+                "vehicle_id": tid, "vehicle": v.name, "type": "Превышение скорости",
+                "geozone": None, "limit_kmh": None,
+                "max_speed_kmh": _num(getattr(v, "max_speed_kmh", None)),
+                "excess_kmh": None, "start_ts": None,
+                "detail": f"{v.speeding_count} эпизодов, {_num(v.speeding_mileage_km)} км",
+                "severity": None, "koap_article": None, "fine_kzt": None,
+            })
+    rows.sort(key=lambda r: (r.get("fine_kzt") or 0, r.get("excess_kmh") or 0), reverse=True)
+    by_type: dict[str, int] = {}
+    for r in rows:
+        by_type[r["type"]] = by_type.get(r["type"], 0) + 1
+    return {"count": len(rows), "rows": rows[:5000], "by_type": by_type}
+
+
 def build_fleet_table(vehicles: Any, vehicle_org: Optional[dict] = None) -> dict:
     """Форма «Сводный / Работа группы» (посуточный итог по ТС): все метрики агрегата
     одной таблицей — пробег, топливо, моточасы, режимы, превышения. Источник — `VehicleMetrics`."""

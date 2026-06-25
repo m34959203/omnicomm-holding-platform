@@ -45,3 +45,20 @@ def test_fleet_table_all_fields_sorted():
     assert out["rows"][0]["vehicle_id"] == "2"          # больший пробег сверху
     a = next(r for r in out["rows"] if r["vehicle_id"] == "1")
     assert a["fuel_l"] == 5.0 and a["speeding_count"] == 3 and a["org_id"] == "org-a"
+
+
+def test_violations_geozone_and_aggregate():
+    from omnicomm_report.speeding import Violation
+    vios = {"1": [Violation(terminal_id="1", geozone="Инкай 80", limit=80, max_speed=110.0,
+                            excess=30.0, duration_s=120, start_ts=1000, points=2,
+                            public_road=True, st_kap_severity="грубое",
+                            koap_article="ст.592 ч.3", fine_kzt=86500)]}
+    vs = [VehicleMetrics(vehicle_id="1", name="A", max_speed_kmh=110.0),
+          VehicleMetrics(vehicle_id="2", name="B", max_speed_kmh=95.0,
+                         speeding_count=4, speeding_mileage_km=12.0)]
+    out = reports.build_violations(vios, vs, {"1": "A", "2": "B"})
+    assert out["count"] == 2
+    assert out["rows"][0]["fine_kzt"] == 86500          # с штрафом сверху
+    agg = next(r for r in out["rows"] if r["vehicle_id"] == "2")
+    assert agg["type"] == "Превышение скорости" and "4 эпизодов" in agg["detail"]
+    assert out["by_type"]["Превышение в геозоне"] == 1

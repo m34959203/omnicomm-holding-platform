@@ -224,6 +224,8 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
         "geozone_visits": reports.build_geozone_visits(
             visits or [], {str(v.vehicle_id): v.name for v in vehicles}),
         "fleet_table": reports.build_fleet_table(vehicles, vehicle_org),
+        "violations": reports.build_violations(
+            violations, vehicles, {str(v.vehicle_id): v.name for v in vehicles}),
     }
 
 
