@@ -36,7 +36,7 @@ wait_job(){ # $1=id $2=label
 
 # 2) микро-слайс АГРЕГАТОВ за весь год (store_only, резюм: тянет только дыры)
 id=$(curl -s -X POST "$API/api/sync/incremental" -H 'Content-Type: application/json' \
-  -d "{\"store_only\":true,\"ingest_start_days\":$YEAR,\"ingest_end_days\":0,\"max_seconds\":$AGG_CAP}" | jget id)
+  -d "{\"store_only\":true,\"ingest_start_days\":$YEAR,\"ingest_end_days\":0,\"max_seconds\":$AGG_CAP,\"workers\":${AGG_WORKERS:-3}}" | jget id)
 log "агрегаты слайс job=$id"; wait_job "$id" "Агрегаты"
 
 # 3) микро-слайс ТРЕКОВ за весь год (адаптивно, present-skip фронта)
