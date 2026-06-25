@@ -10,13 +10,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout, as_completed
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from omnicomm_report import (
     classify, config, data_loader, demo_data, economics, geozones, org as org_mod,
     recommendations, rollup, speeding, validator)
+from omnicomm_report.api_client import MAX_VEHICLES_PER_REPORT
 from omnicomm_report.models import ReportPeriod
 
 from . import cache, fetch, fleet_cache, health, serialize
@@ -43,6 +47,108 @@ def _dedup_records(records: list) -> list:
         seen.add(key)
         out.append(r)
     return out
+
+
+def _batch_key(chunk) -> str:
+    """Стабильный ключ пачки ТС — хэш отсортированных terminal_id (не зависит от порядка)."""
+    return hashlib.md5(",".join(map(str, sorted(chunk))).encode()).hexdigest()[:16]
+
+
+def _aligned_windows(start_ts: int, end_ts: int, window_days: int) -> list:
+    """Окна забора по ФИКСИРОВАННОЙ сетке (кратной window_days от эпохи), а НЕ от `now`.
+
+    Критично для resume: границы окон должны совпадать между запусками, иначе ключи
+    чекпоинтов не сойдутся. Привязка к сетке `(ts // W) * W` даёт одни и те же окна
+    при любом `now`."""
+    W = max(1, window_days) * 86400
+    sd = (int(start_ts) // 86400) * 86400
+    ed = (int(end_ts) // 86400) * 86400
+    out, w = [], (sd // W) * W
+    while w < ed:
+        out.append((w, min(w + W, ed)))
+        w += W
+    return out
+
+
+def _resumable_ingest(progress: ProgressCb, ids: list, ing_start: int, ing_end: int, *,
+                      raw_path: str, workers: int, max_seconds: float,
+                      refresh_floor: int, pct_from: float = 4.0,
+                      pct_to: float = 90.0, make_client=None) -> dict:
+    """Поштучно-резюмируемый забор агрегатов: единица = (окно сетки × пачка ≤50 ТС).
+
+    Пропускает уже забранные единицы (журнал `ingest_progress`), тянет только дыры,
+    upsert + чекпоинт на КАЖДУЮ единицу (durable при капе). Свежие окна (`end > refresh_floor`)
+    всегда тянем заново и НЕ чекпоинтим (данные ещё оседают). Кап по времени = просто
+    «достроим в следующий слайс», не обрезка."""
+    from . import raw_store
+    make_client = make_client or _new_live_client
+    windows = _aligned_windows(ing_start, ing_end, config.REPORT_WINDOW_DAYS)
+    chunks = [ids[i:i + MAX_VEHICLES_PER_REPORT]
+              for i in range(0, len(ids), MAX_VEHICLES_PER_REPORT)]
+    total_all = len(chunks) * len(windows)
+    if not windows or not chunks:
+        return {"ingested": 0, "units_total": 0, "units_run": 0, "already_done": 0,
+                "stopped": False}
+    done = raw_store.done_units(windows[0][0], windows[-1][1], raw_path)
+
+    units = []
+    for ch in chunks:
+        bk = _batch_key(ch)
+        for (wb, we) in windows:
+            fresh = we > refresh_floor                 # свежее окно — всегда тянем
+            if not fresh and (wb, we, bk) in done:
+                continue                               # уже забрано — resume-skip
+            units.append((ch, wb, we, bk, fresh))
+
+    deadline = time.monotonic() + max_seconds
+    tls = threading.local()
+
+    def _client():
+        c = getattr(tls, "client", None)
+        if c is None:
+            c = make_client()
+            tls.client = c
+        return c
+
+    def _work(u):
+        ch, wb, we, bk, fresh = u
+        if time.monotonic() >= deadline:
+            return None
+        per = ReportPeriod(start=datetime.fromtimestamp(wb, timezone.utc),
+                           end=datetime.fromtimestamp(we, timezone.utc))
+        try:
+            return (u, _client().get_consolidated_report(ch, per) or [])
+        except Exception:                              # noqa: BLE001 — сбой единицы не валит забор
+            return None
+
+    ingested = 0
+    stopped = False
+    progress(pct_from, f"Агрегаты (резюм): {len(units)} ед. к забору, "
+                       f"{total_all - len(units)} уже есть")
+    ex = ThreadPoolExecutor(max_workers=max(1, min(workers, len(units))))
+    futures = [ex.submit(_work, u) for u in units]
+    span = max(0.0, pct_to - pct_from)
+    try:
+        n = 0
+        for fut in as_completed(futures, timeout=max_seconds):
+            n += 1
+            r = fut.result()
+            if r is not None:
+                (ch, wb, we, bk, fresh), res = r
+                recs = _dedup_records(data_loader._extract_records(res))
+                raw_store.upsert_daily(recs, raw_path)             # поштучный upsert
+                if not fresh:
+                    raw_store.mark_unit_done(wb, we, bk, raw_path)  # чекпоинт единицы
+                ingested += len(recs)
+            if n % 20 == 0 or n == len(units):
+                progress(pct_from + span * n / len(units),
+                         f"Агрегаты {n}/{len(units)} ед. · +{ingested} строк")
+    except FTimeout:
+        stopped = True
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
+    return {"ingested": ingested, "units_total": total_all, "units_run": len(units),
+            "already_done": total_all - len(units), "stopped": stopped}
 
 
 def _new_live_client():
@@ -166,20 +272,30 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
 
     # ДОВОЗ суток ingest-окна → сырое хранилище (бюджет масштабируем под длину окна).
     ing_budget = min(480 + win_days * 80, 3000)
-    payload = fetch.fetch_report_parallel(
-        _new_live_client, ids, ingest,
-        call=lambda c, ch, p: c.get_consolidated_report(ch, p),
-        label="Довоз телеметрии", workers=workers, progress=progress,
-        pct_from=4, pct_to=(90 if store_only else 50), best_effort=True,
-        max_seconds=ing_budget, window_days=config.REPORT_WINDOW_DAYS)
-    new_daily = _dedup_records(data_loader._extract_records(payload))
-    raw_store.upsert_daily(new_daily, raw_path)
+    if store_only:
+        # Помесячный backfill — ПОШТУЧНО-РЕЗЮМИРУЕМЫЙ: тянем только дыры, чекпоинт на
+        # каждую единицу. Кап = «достроим в след. слайс», не обрезка (см. _resumable_ingest).
+        refresh_floor = now - config.INGEST_WINDOW_DAYS * 86400
+        ing = _resumable_ingest(
+            progress, ids, ing_start, ing_end, raw_path=raw_path, workers=workers,
+            max_seconds=ing_budget, refresh_floor=refresh_floor, pct_from=4, pct_to=88)
+    else:
+        payload = fetch.fetch_report_parallel(
+            _new_live_client, ids, ingest,
+            call=lambda c, ch, p: c.get_consolidated_report(ch, p),
+            label="Довоз телеметрии", workers=workers, progress=progress,
+            pct_from=4, pct_to=50, best_effort=True,
+            max_seconds=ing_budget, window_days=config.REPORT_WINDOW_DAYS)
+        new_daily = _dedup_records(data_loader._extract_records(payload))
+        raw_store.upsert_daily(new_daily, raw_path)
+
+    # Визиты геозон (best-effort) — для обоих путей.
     try:
         visits_new = fetch.fetch_report_parallel(
             _new_live_client, ids, ingest,
             call=lambda c, ch, p: c.get_geozones_report(ch, p),
             label="Довоз геозон", workers=workers, progress=progress,
-            pct_from=(90 if store_only else 50), pct_to=(98 if store_only else 60),
+            pct_from=(88 if store_only else 50), pct_to=(96 if store_only else 60),
             best_effort=True, max_seconds=min(120 + win_days * 20, 600),
             window_days=config.REPORT_WINDOW_DAYS)
         raw_store.upsert_visits(visits_new, raw_path)
@@ -189,9 +305,12 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
     # store_only (помесячный backfill): снимок НЕ пересобираем — только наполнили архив.
     if store_only:
         cov = raw_store.coverage(raw_path)
-        progress(100, f"Месяц довезён в хранилище: +{len(new_daily)} суточных строк")
-        return {"ingested": len(new_daily), "store": cov, "store_only": True,
-                "window_days": int(win_days)}
+        tail = "; кап — достроится в след. слайс" if ing["stopped"] else ""
+        progress(100, f"Месяц: +{ing['ingested']} строк, забрано {ing['units_run']} ед. "
+                      f"(+{ing['already_done']} уже было){tail}")
+        return {"ingested": ing["ingested"], "units_run": ing["units_run"],
+                "already_done": ing["already_done"], "stopped_by_cap": ing["stopped"],
+                "store": cov, "store_only": True, "window_days": int(win_days)}
 
     # ПЕРЕСБОРКА снимка из НАКОПЛЕННОГО store за view-окно (без обращений в Omnicomm).
     progress(64, "Сборка снимка из накопленных данных")

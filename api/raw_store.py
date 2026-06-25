@@ -40,9 +40,16 @@ CREATE TABLE IF NOT EXISTS fact_track (
     max_speed   REAL,
     PRIMARY KEY (terminal_id, date)
 );
+CREATE TABLE IF NOT EXISTS ingest_progress (
+    window_begin INTEGER NOT NULL,   -- начало окна забора (unix-сек, выровнено по сетке)
+    window_end   INTEGER NOT NULL,   -- конец окна
+    batch_key    TEXT NOT NULL,      -- хэш отсортированных terminal_id пачки
+    PRIMARY KEY (window_begin, window_end, batch_key)
+);
 CREATE INDEX IF NOT EXISTS ix_daily_date ON fact_daily(date);
 CREATE INDEX IF NOT EXISTS ix_visit_date ON fact_visit(start_date);
 CREATE INDEX IF NOT EXISTS ix_track_date ON fact_track(date);
+CREATE INDEX IF NOT EXISTS ix_progress_end ON ingest_progress(window_end);
 """
 
 
@@ -196,6 +203,29 @@ def track_coverage(path: str = DEFAULT_PATH) -> dict:
             "date_min": r[3], "date_max": r[4]}
 
 
+def mark_unit_done(window_begin: int, window_end: int, batch_key: str,
+                   path: str = DEFAULT_PATH) -> None:
+    """Отметить единицу забора (окно×пачка) выполненной — чекпоинт резюмируемости."""
+    with _connect(path) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO ingest_progress(window_begin,window_end,batch_key) "
+            "VALUES(?,?,?)", (int(window_begin), int(window_end), str(batch_key)))
+        conn.commit()
+
+
+def done_units(start_ts: int, end_ts: int, path: str = DEFAULT_PATH) -> set:
+    """Множество (window_begin, window_end, batch_key) уже забранных единиц в окне —
+    для resume: повторный забор пропускает их (тянет только дыры)."""
+    if not os.path.exists(path):
+        return set()
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT window_begin,window_end,batch_key FROM ingest_progress "
+            "WHERE window_begin>=? AND window_end<=?",
+            (int(start_ts), int(end_ts))).fetchall()
+    return {(int(a), int(b), str(c)) for a, b, c in rows}
+
+
 def coverage(path: str = DEFAULT_PATH) -> dict:
     """Диагностика покрытия: сколько суточных строк/визитов и за какой диапазон."""
     if not os.path.exists(path):
@@ -214,5 +244,6 @@ def prune_before(cutoff_ts: int, path: str = DEFAULT_PATH) -> int:
         n = conn.execute("DELETE FROM fact_daily WHERE date < ?", (int(cutoff_ts),)).rowcount
         conn.execute("DELETE FROM fact_visit WHERE start_date < ?", (int(cutoff_ts),))
         conn.execute("DELETE FROM fact_track WHERE date < ?", (int(cutoff_ts),))
+        conn.execute("DELETE FROM ingest_progress WHERE window_end < ?", (int(cutoff_ts),))
         conn.commit()
     return n
