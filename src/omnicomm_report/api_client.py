@@ -421,7 +421,7 @@ class OmnicommClient:
 
     # --- Публичные методы (возвращают «сырые» dict/list) ---------------------
 
-    def get_vehicle_tree(self) -> list[dict]:
+    def get_vehicle_tree(self, timeout: int = None, max_retries: int = None) -> list[dict]:
         """Сырое дерево ТС: GET /ls/api/v2/tree/vehicle.
 
         Возвращает список корневых узлов как есть. ТС лежат вложенно в
@@ -429,10 +429,12 @@ class OmnicommClient:
 
         Тяжёлый эндпоинт (~2000 ТС): длинный таймаут + больше попыток с backoff —
         под нагрузкой копия отвечает медленно (деградация 24.06 уходила в таймаут 30с).
+        `timeout`/`max_retries` можно переопределить (напр. health-проба хочет быстрый
+        отказ: короткий таймаут, 1 попытка — не ждать 120с×4 на больной копии).
         """
         data = self._request("GET", "vehicle_tree",
-                             timeout=config.TREE_TIMEOUT,
-                             max_retries=config.TREE_MAX_RETRIES)
+                             timeout=timeout or config.TREE_TIMEOUT,
+                             max_retries=max_retries or config.TREE_MAX_RETRIES)
         if isinstance(data, dict):
             return [data]
         if isinstance(data, list):

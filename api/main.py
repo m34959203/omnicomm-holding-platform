@@ -104,6 +104,7 @@ class IncrementalSyncRequest(BaseModel):
     ingest_start_days: Optional[int] = None
     ingest_end_days: Optional[int] = None
     store_only: bool = False
+    max_seconds: Optional[float] = None     # кап забора на слайс (микро-слайсы трикла)
 
 
 @app.post("/api/sync/incremental")
@@ -122,7 +123,8 @@ def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
             progress, ingest_days=req.ingest_days, view_days=req.view_days,
             fuel_price_kzt=fuel, workers=workers,
             ingest_start_days=req.ingest_start_days,
-            ingest_end_days=req.ingest_end_days, store_only=req.store_only)
+            ingest_end_days=req.ingest_end_days, store_only=req.store_only,
+            max_seconds=req.max_seconds)
 
     return jobs.registry.start("sync", target).to_dict()
 
@@ -163,6 +165,14 @@ def track_coverage() -> dict:
     """Покрытие локального архива треков: суток/точек/ТС и диапазон дат."""
     from . import raw_store
     return raw_store.track_coverage()
+
+
+@app.get("/api/omnicomm/health")
+def omnicomm_health() -> dict:
+    """Health-gate копии: можно ли сейчас грузить бэкфилл (login+дерево+сводный).
+    Трикл-крон дёргает это перед слайсом и грузит ТОЛЬКО при ok=True (см. health_gate)."""
+    from . import health_gate
+    return health_gate.probe()
 
 
 @app.get("/api/sync/{job_id}")

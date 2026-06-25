@@ -49,6 +49,15 @@ def list_vehicles(client, ttl: Optional[float] = None) -> list:
     return _cached("vehicles", ttl, lambda: client.list_vehicles() or [])
 
 
+def prime(tree, vehicles) -> None:
+    """Залить готовые дерево/список в кэш (health-проба уже их забрала — чтобы
+    последующий слайс НЕ тянул тяжёлое дерево повторно)."""
+    now = time.monotonic()
+    with _lock:
+        _cache["tree"] = (now, tree)
+        _cache["vehicles"] = (now, list(vehicles or []))
+
+
 def clear() -> None:
     """Сбросить кэш (напр. при смене учётки)."""
     with _lock:

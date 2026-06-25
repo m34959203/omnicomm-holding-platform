@@ -227,7 +227,8 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
                          view_days: int = None, fuel_price_kzt: float = 0.0,
                          workers: int = 6, cache_path: str = cache.DEFAULT_PATH,
                          raw_path: str = None, ingest_start_days: int = None,
-                         ingest_end_days: int = None, store_only: bool = False) -> dict:
+                         ingest_end_days: int = None, store_only: bool = False,
+                         max_seconds: float = None) -> dict:
     """Инкрементальный синк: довезти ТОЛЬКО свежие сутки в сырое хранилище и
     пересобрать снимок из НАКОПЛЕННОГО за view-окно (историю не перезабираем).
 
@@ -270,8 +271,9 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
                 for v in tree_vehicles
                 if (v.get("terminal_id") or v.get("id") or v.get("uuid")) and v.get("name")}
 
-    # ДОВОЗ суток ingest-окна → сырое хранилище (бюджет масштабируем под длину окна).
-    ing_budget = min(480 + win_days * 80, 3000)
+    # ДОВОЗ суток ingest-окна → сырое хранилище (бюджет масштабируем под длину окна,
+    # либо явный max_seconds — для микро-слайсов трикла; резюм-логика добёрет за слайсы).
+    ing_budget = max_seconds if max_seconds else min(480 + win_days * 80, 3000)
     if store_only:
         # Помесячный backfill — ПОШТУЧНО-РЕЗЮМИРУЕМЫЙ: тянем только дыры, чекпоинт на
         # каждую единицу. Кап = «достроим в след. слайс», не обрезка (см. _resumable_ingest).
