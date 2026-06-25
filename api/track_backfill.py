@@ -32,7 +32,7 @@ from typing import Callable, Optional
 
 from omnicomm_report import config, data_loader, track_clean
 from omnicomm_report.models import ReportPeriod
-from omnicomm_report.rate_limit import RateLimiter
+from omnicomm_report.rate_limit import AdaptiveRateLimiter, RateLimiter
 
 from . import fleet_cache, raw_store
 from .sync import _dedup_records, _new_live_client
@@ -72,6 +72,7 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
                        max_seconds: Optional[float] = None,
                        refresh_days: Optional[int] = None,
                        workers: Optional[int] = None,
+                       adaptive: Optional[bool] = None,
                        raw_path: Optional[str] = None,
                        client=None, make_client=None,
                        name_map: Optional[dict] = None,
@@ -97,7 +98,16 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
     raw_path = raw_path or raw_store.DEFAULT_PATH
     now = int(now if now is not None else time.time())
     deadline = time.monotonic() + max_seconds
-    limiter = RateLimiter(rate_per_min)   # общий потолок частоты на все потоки бэкфилла
+    adaptive = config.TRACK_ADAPTIVE if adaptive is None else adaptive
+    # Адаптивный темп (AIMD по латентности копии) ИЛИ фиксированный потолок.
+    if adaptive:
+        limiter = AdaptiveRateLimiter(
+            start=min(rate_per_min, config.TRACK_RATE_MAX), min_rate=config.TRACK_RATE_MIN,
+            max_rate=config.TRACK_RATE_MAX, lat_low=config.TRACK_LATENCY_LOW,
+            lat_high=config.TRACK_LATENCY_HIGH, adjust_every=config.TRACK_ADJUST_EVERY,
+            ai_step=config.TRACK_AI_STEP)
+    else:
+        limiter = RateLimiter(rate_per_min)   # фиксированный потолок на все потоки
 
     # Фабрика клиента на поток. Если передан единичный `client` (тесты) — один поток.
     if make_client is None and client is None:
@@ -162,15 +172,20 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
         tid, ds, here = unit
         if time.monotonic() >= deadline:          # после дедлайна — не дёргаем Omnicomm
             return False
-        limiter.acquire()                          # общий потолок частоты (на все потоки)
+        limiter.acquire()                          # темп (адаптивный/фиксированный)
         if time.monotonic() >= deadline:
             return False
+        t0 = time.monotonic()
+        ok = True
         try:
             raw = _client().get_track(str(tid), ReportPeriod(
                 start=datetime.fromtimestamp(ds, timezone.utc),
                 end=datetime.fromtimestamp(ds + 86400, timezone.utc)))
         except Exception:                          # noqa: BLE001 — сбой ТС не валит бэкфилл
             raw = []
+            ok = False
+        if adaptive:                               # сигнал здоровья: латентность+ошибка → AIMD
+            limiter.record(time.monotonic() - t0, ok)
         norm = _normalize(raw)
         with write_lock:
             raw_store.upsert_track(str(tid), ds, norm, path=raw_path)  # чекпоинт (даже пустой)
@@ -182,7 +197,9 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
         return True
 
     total = len(units)
-    progress(4, f"Забор треков: {total} ТС×сутки, {workers} воркеров, лимит {rate_per_min:.0f}/мин")
+    mode = (f"адаптивный {config.TRACK_RATE_MIN:.0f}-{config.TRACK_RATE_MAX:.0f}/мин"
+            if adaptive else f"фикс {rate_per_min:.0f}/мин")
+    progress(4, f"Забор треков: {total} ТС×сутки, {workers} воркеров, темп {mode}")
     if total and max_seconds > 0:
         ex = ThreadPoolExecutor(max_workers=max(1, min(workers, total)))
         futures = [ex.submit(_work, u) for u in units]
@@ -192,8 +209,9 @@ def run_track_backfill(progress: ProgressCb, *, days: Optional[int] = None,
                 fut.result()
                 done += 1
                 if done % 200 == 0 or done == total:
+                    cur = f" · темп {limiter.rate:.0f}/мин" if adaptive else ""
                     progress(4 + 94.0 * done / total,
-                             f"Треки {done}/{total} · новых {pulled} (+{refreshed} обновл.)")
+                             f"Треки {done}/{total} · новых {pulled} (+{refreshed} обновл.){cur}")
         except FTimeout:
             stopped = True
         finally:

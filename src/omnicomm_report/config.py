@@ -177,6 +177,18 @@ TREE_MAX_RETRIES = int(os.getenv("TREE_MAX_RETRIES", "4") or 4)
 # Кэш дерева/списка ТС на процесс (один забор на TTL, single-flight) — чтобы 24 задачи
 # бэкфилла и пул воркеров НЕ дёргали тяжёлое дерево по многу раз (причина деградации 24.06).
 FLEET_CACHE_TTL = int(os.getenv("FLEET_CACHE_TTL", "3600") or 3600)
+
+# Адаптивный темп бэкфилла треков (AIMD по здоровью копии): ускоряемся когда сервер
+# отвечает быстро и чисто, тормозим при росте латентности/ошибках. Всё в [min, max];
+# max ≤ аккаунт-лимита с запасом живому синку. Старт консервативный.
+TRACK_ADAPTIVE = os.getenv("TRACK_ADAPTIVE", "1") not in ("0", "false", "False", "")
+TRACK_RATE_MIN = float(os.getenv("TRACK_RATE_MIN", "20") or 20)
+TRACK_RATE_MAX = float(os.getenv("TRACK_RATE_MAX", "120") or 120)
+TRACK_RATE_START = float(os.getenv("TRACK_RATE_START", "40") or 40)
+TRACK_LATENCY_LOW = float(os.getenv("TRACK_LATENCY_LOW", "2.0") or 2.0)   # < — ускоряемся
+TRACK_LATENCY_HIGH = float(os.getenv("TRACK_LATENCY_HIGH", "5.0") or 5.0)  # > — тормозим
+TRACK_ADJUST_EVERY = int(os.getenv("TRACK_ADJUST_EVERY", "30") or 30)
+TRACK_AI_STEP = float(os.getenv("TRACK_AI_STEP", "10") or 10)
 # Кап на ОДИН запуск (cron гоняет короткими ночными слайсами; остаток добирается
 # в следующий слайс — забор резюмируемый, уже сохранённые сутки пропускаются).
 TRACK_BACKFILL_MAX_SECONDS = int(os.getenv("TRACK_BACKFILL_MAX_SECONDS", "1800") or 1800)

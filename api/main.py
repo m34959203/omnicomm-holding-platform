@@ -133,6 +133,7 @@ class TrackBackfillRequest(BaseModel):
     rate_per_min: Optional[float] = None  # безопасный потолок забора (None → config)
     max_seconds: Optional[float] = None   # кап на один слайс (None → config)
     workers: Optional[int] = None         # пул воркеров забора (None → config)
+    adaptive: Optional[bool] = None       # адаптивный темп AIMD (None → config, вкл)
 
 
 @app.post("/api/track/backfill")
@@ -152,7 +153,7 @@ def start_track_backfill(req: TrackBackfillRequest) -> dict:
         return track_backfill.run_track_backfill(
             progress, days=req.days, min_km=req.min_km,
             rate_per_min=req.rate_per_min, max_seconds=req.max_seconds,
-            workers=req.workers)
+            workers=req.workers, adaptive=req.adaptive)
 
     return jobs.registry.start("track_backfill", target).to_dict()
 

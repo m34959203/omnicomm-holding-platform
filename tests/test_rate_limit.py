@@ -32,3 +32,53 @@ def test_limiter_shared_per_account():
     b = get_limiter("acc1", 170)
     c = get_limiter("acc2", 170)
     assert a is b and a is not c        # один лимитер на аккаунт
+
+
+def test_adaptive_speeds_up_on_clean_fast():
+    from omnicomm_report.rate_limit import AdaptiveRateLimiter
+    a = AdaptiveRateLimiter(start=40, min_rate=20, max_rate=120,
+                            lat_low=2.0, lat_high=5.0, adjust_every=10, ai_step=10)
+    for _ in range(10):                      # окно чистых быстрых запросов
+        a.record(latency=1.0, ok=True)
+    assert a.rate == 50                      # +ai_step (аддитивный рост)
+
+
+def test_adaptive_backs_off_on_slow():
+    from omnicomm_report.rate_limit import AdaptiveRateLimiter
+    a = AdaptiveRateLimiter(start=80, min_rate=20, max_rate=120,
+                            lat_low=2.0, lat_high=5.0, adjust_every=10, md_factor=0.5)
+    for _ in range(10):                      # окно медленных ответов
+        a.record(latency=9.0, ok=True)
+    assert a.rate == 40                      # ×0.5 (резкий сброс)
+
+
+def test_adaptive_backs_off_on_errors():
+    from omnicomm_report.rate_limit import AdaptiveRateLimiter
+    a = AdaptiveRateLimiter(start=60, min_rate=20, max_rate=120,
+                            lat_low=2.0, lat_high=5.0, adjust_every=10)
+    for i in range(10):
+        a.record(latency=1.0, ok=(i != 0))   # одна ошибка в окне
+    assert a.rate == 30                       # ошибка → сброс несмотря на низкую латентность
+
+
+def test_adaptive_respects_bounds():
+    from omnicomm_report.rate_limit import AdaptiveRateLimiter
+    hi = AdaptiveRateLimiter(start=115, min_rate=20, max_rate=120,
+                             lat_low=2.0, lat_high=5.0, adjust_every=5, ai_step=10)
+    for _ in range(15):
+        hi.record(0.5, True)
+    assert hi.rate == 120                     # не выше max
+    lo = AdaptiveRateLimiter(start=25, min_rate=20, max_rate=120,
+                             lat_low=2.0, lat_high=5.0, adjust_every=5, md_factor=0.5)
+    for _ in range(15):
+        lo.record(10.0, False)
+    assert lo.rate == 20                      # не ниже min
+
+
+def test_adaptive_holds_in_corridor():
+    from omnicomm_report.rate_limit import AdaptiveRateLimiter
+    a = AdaptiveRateLimiter(start=50, min_rate=20, max_rate=120,
+                            lat_low=2.0, lat_high=5.0, adjust_every=10)
+    for _ in range(10):                       # латентность между low и high → держим
+        a.record(latency=3.0, ok=True)
+    assert a.rate == 50
