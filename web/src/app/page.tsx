@@ -212,6 +212,13 @@ export default function Page() {
     return map;
   }, [orgs, byId, vehicleOrg]);
 
+  // Экономика по выбору: ровно один ДЗО в слайсере → его per-org экономика (BUG-7),
+  // иначе — экономика текущего корня (холдинг/скоуп).
+  const ecoEff = useMemo(() => {
+    if (selected.size === 1) return dash?.economics_by_org?.[[...selected][0]] ?? null;
+    return dash?.economics ?? null;
+  }, [selected, dash]);
+
   const dzoNameById = useMemo(() => new Map(dzoNodes(orgs).map((n) => [n.org_id, n.name])), [orgs]);
   const dzoOf = (vid: string) => dzoNameById.get(vehTopDzo[vid]) ?? "—";
 
@@ -302,8 +309,8 @@ export default function Page() {
           {state === "empty" && <Notice title="Снимок ещё не собран" body="Нажмите «↻ обновить» вверху — синк соберёт снапшот в фоне." />}
           {state === "ready" && (
             <>
-              {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} onSelectDzo={toggle} onJump={onJump} />}
-              {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} overrunKzt={overrunKzt} overrunProvisional={!fuelDet?.norms_approved} onSelectDzo={toggle} onJump={onJump} />}
+              {page === "overview" && <Overview rows={rows} agg={agg} eco={ecoEff} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} onSelectDzo={toggle} onJump={onJump} />}
+              {page === "money" && <Money rows={rows} agg={agg} eco={ecoEff} overrunKzt={overrunKzt} overrunProvisional={!fuelDet?.norms_approved} onSelectDzo={toggle} onJump={onJump} />}
               {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} fuelPrice={fuelPrice} onVehicle={onVehicle} />}
               {page === "speed" && <Speed rows={rows} det={violDet} recs={recsS} onSelectDzo={toggle} onJump={onJump} onVehicle={onVehicle} />}
               {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}

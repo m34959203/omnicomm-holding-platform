@@ -50,7 +50,7 @@ export default function Money({ rows, agg, eco, overrunKzt, overrunProvisional, 
         </div>
       </Panel>
 
-      <Panel span={4} title="Структура потерь · по статьям" right="холдинг">
+      <Panel span={4} title="Структура потерь · по статьям">
         <div style={{ display: "flex", flexDirection: "column", gap: 11, paddingTop: 2 }}>
           {buckets.map((b) => (
             <div key={b.key}>

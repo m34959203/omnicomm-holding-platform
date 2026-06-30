@@ -59,7 +59,7 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal, o
         </div>
       </Panel>
 
-      <Panel span={4} title="Структура потерь · по статьям" right="холдинг">
+      <Panel span={4} title="Структура потерь · по статьям">
         <div style={{ display: "flex", flexDirection: "column", gap: 11, paddingTop: 2 }}>
           {buckets.length ? buckets.map((b) => (
             <div key={b.key}>

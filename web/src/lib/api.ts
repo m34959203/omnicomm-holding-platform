@@ -186,6 +186,7 @@ export interface Dashboard {
   fleet: { vehicles: number; with_data: number } | null;
   orgs: OrgNode[];
   economics: Economics | null;
+  economics_by_org?: Record<string, Economics>;
   meta: Meta | null;
 }
 
