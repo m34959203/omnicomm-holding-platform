@@ -44,6 +44,16 @@ export default function Fuel({ data, loading, inScope, dzoOf, fuelPrice, onVehic
   const note = `${data.from} — ${data.to} · ${ru(scoped.length)} ТС · норма у ${ru(withNorm)}`
     + (data.capped ? ` · top-${ru(data.returned)} из ${ru(data.total)}` : "");
 
+  // факт/норма с единицей по режиму (дорожный л/100 vs моточасный л/мч)
+  const U = (v: number | null, unit: string) => v != null ? `${ru(v, 1)} ${unit}` : "—";
+  const factCell = (r: typeof view[number]) =>
+    r.mode === "mh" ? U(r.fact_lmh, "л/мч")
+      : r.fact_l100 != null ? U(r.fact_l100, "л/100")
+        : r.fact_lmh != null ? U(r.fact_lmh, "л/мч") : "—";
+  const normCell = (r: typeof view[number]) =>
+    r.mode === "mh" ? U(r.norm_lmh, "л/мч")
+      : r.mode === "km" ? U(r.norm_l100, "л/100") : "—";
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 12, alignContent: "start" }}>
       <Kpi label="Перерасход ₸" value={compactM(overL * price) + " ₸"} color={C.red} sub={prov ? "предв. · по нормам" : "по нормам"} span={4} />
@@ -68,16 +78,18 @@ export default function Fuel({ data, loading, inScope, dzoOf, fuelPrice, onVehic
       <Panel span={7} title="Работа группы по ТС · топливо и норма" right={note}>
         {tableWrap(<>
           <thead><tr style={theadStyle}>
-            <Th>ТС</Th><Th>ДЗО</Th><Th right>Пробег</Th><Th right>л/100</Th>
-            <Th right>Норма</Th><Th right>Перерасход ₸</Th><Th right>Заправки</Th><Th right>Сливы</Th>
+            <Th>ТС</Th><Th>ДЗО</Th><Th right>Пробег</Th><Th right>Моточасы</Th>
+            <Th right>Факт</Th><Th right>Норма*</Th><Th right>Перерасход ₸</Th><Th right>Заправки</Th><Th right>Сливы</Th>
           </tr></thead>
           <tbody>
             {view.length ? view.map((r) => (
               <tr key={r.vehicleId} style={{ ...trRule, cursor: "pointer" }} onClick={() => onVehicle(r.vehicleId, r.vehicle)}>
                 <Td bold>{r.vehicle || r.vehicleId}</Td>
                 <Td color={C.muted}>{dzoOf(r.vehicleId)}</Td>
-                <Td right color={r.fact_l100 == null ? C.faint2 : undefined}>{r.fact_l100 != null ? ru(r.fact_l100, 1) : "—"}</Td>
-                <Td right color={C.faint2}>{r.norm_l100 != null ? ru(r.norm_l100, 1) : "—"}</Td>
+                <Td right color={C.muted}>{ru(r.mileage_km)}</Td>
+                <Td right color={C.muted}>{ru(r.moto_h, 1)}</Td>
+                <Td right color={factCell(r) === "—" ? C.faint2 : undefined}>{factCell(r)}</Td>
+                <Td right color={C.faint2}>{normCell(r)}</Td>
                 <Td right color={r.over_l == null ? C.faint2 : r.over_l > 0 ? C.red : C.green} bold={!!r.over_l}>
                   {r.over_l == null ? "—" : (r.over_l > 0 ? "+" : "−") + compactM(Math.abs(r.over_l) * price)}
                 </Td>
@@ -96,8 +108,9 @@ export default function Fuel({ data, loading, inScope, dzoOf, fuelPrice, onVehic
           </div>
         )}
         <div style={{ fontSize: 10.5, color: C.faint, padding: "8px 13px 2px", lineHeight: 1.5 }}>
-          л/100 и перерасход — только для транспорта с пробегом ≥ 100 км и достоверным расходом
-          (АТЗ/ёмкости/моточасная техника → «—»). Цена ГСМ {ru(price)} ₸/л. Смены требуют графика смен.
+          Факт/норма: дорожная техника — <b>л/100</b> (пробег ≥ 100 км), моточасная — <b>л/мч</b> (моточасы ≥ 20).
+          Перерасход — только где расход достоверен (АТЗ/ёмкости/выдача → «—»). *Нормы предварительные
+          (<code>data/fuel_norms.json</code>). Цена ГСМ {ru(price)} ₸/л. Смены требуют графика смен.
         </div>
       </Panel>
     </div>

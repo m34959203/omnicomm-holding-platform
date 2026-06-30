@@ -1,11 +1,17 @@
 {
   "version": "2026-06-30",
   "approved": false,
-  "_comment": "ПРЕДВАРИТЕЛЬНЫЙ справочник норм расхода (л/100 км). approved=false → перерасход помечается «предв.». Замени значения на СОГЛАСОВАННЫЕ и поставь approved=true. Приоритет: vehicles[terminal_id] > норма Omnicomm (5..150) > categories[категория]. Категории: light (легковые/пикапы), bus (автобусы), truck (грузовые/спецтехника).",
+  "_comment": "ПРЕДВАРИТЕЛЬНЫЙ справочник норм. approved=false → перерасход помечается «предв.». Замени на СОГЛАСОВАННЫЕ и поставь approved=true. Дорожная техника: норма л/100 (categories / vehicles). Моточасная техника (спецтехника/генераторы, где л/100 бессмыслен): норма л/мч (categories_mh / vehicles_mh). Приоритет: vehicles[id] > норма Omnicomm > categories[категория]. Категории: light, bus, truck.",
   "categories": {
     "light": 14,
     "bus": 30,
     "truck": 42
   },
-  "vehicles": {}
+  "categories_mh": {
+    "light": 4,
+    "bus": 10,
+    "truck": 18
+  },
+  "vehicles": {},
+  "vehicles_mh": {}
 }

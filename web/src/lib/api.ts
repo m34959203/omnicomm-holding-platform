@@ -285,7 +285,9 @@ export interface ViolationsDetail {
 export interface FuelDetailRow {
   vehicleId: string; vehicle: string; transport: boolean;
   mileage_km: number; moto_h: number; fuel_l: number;
-  fact_l100: number | null; norm_l100: number | null; norm_src: string; over_l: number | null;
+  fact_l100: number | null; norm_l100: number | null;
+  fact_lmh: number | null; norm_lmh: number | null;
+  mode: "km" | "mh" | null; norm_src: string; over_l: number | null;
   refuel_l: number; drain_l: number; delivery_l: number;
 }
 export interface FuelDetail {
