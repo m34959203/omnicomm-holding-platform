@@ -69,6 +69,19 @@ def health() -> dict:
 MAX_WORKERS = 8     # потолок параллелизма забора (защита памяти/rate-limit на 2GB VPS)
 
 
+# Задача «sync», висящая дольше этого, считается зависшей и не блокирует новую
+# (иначе подвисший на копе синк навсегда голодит пересборку снимка).
+STALE_SYNC_S = 2400  # 40 мин
+
+
+def _blocking(kind: str):
+    """Идущая задача данного вида, НО не зависшая (свежее STALE_SYNC_S)."""
+    j = jobs.registry.active(kind)
+    if j is not None and (time.time() - j.started_at) <= STALE_SYNC_S:
+        return j
+    return None
+
+
 @app.post("/api/sync")
 def start_sync(req: SyncRequest) -> dict:
     """Запустить синк в фоне. Период по умолчанию — последние 7 суток.
@@ -76,7 +89,7 @@ def start_sync(req: SyncRequest) -> dict:
     Single-flight: если синк уже идёт — возвращаем его же (не плодим параллельные
     тяжёлые заборы, чтобы не положить сервер по памяти/rate-limit).
     """
-    running = jobs.registry.active("sync")
+    running = _blocking("sync")
     if running is not None:
         return {**running.to_dict(), "already_running": True}
 
@@ -111,8 +124,12 @@ class IncrementalSyncRequest(BaseModel):
 def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
     """Инкрементальный синк (для cron каждые 3ч): довезти ТОЛЬКО свежие сутки в
     сырое хранилище и пересобрать снимок из накопленного — историю не перезабираем.
-    Разовый backfill истории — вызвать с большим `ingest_days` (напр. 30)."""
-    running = jobs.registry.active("sync")
+    Разовый backfill истории — вызвать с большим `ingest_days` (напр. 30).
+
+    Single-flight разделён: backfill-довоз (`store_only`) → kind="ingest", пересборка
+    снимка → kind="sync". Иначе агрегат-слайс бэкфилла голодил пересборку дашборда."""
+    kind = "ingest" if req.store_only else "sync"
+    running = _blocking(kind)
     if running is not None:
         return {**running.to_dict(), "already_running": True}
     fuel = req.fuel_price_kzt or DEFAULT_FUEL_PRICE_KZT
@@ -126,7 +143,7 @@ def start_incremental_sync(req: IncrementalSyncRequest) -> dict:
             ingest_end_days=req.ingest_end_days, store_only=req.store_only,
             max_seconds=req.max_seconds)
 
-    return jobs.registry.start("sync", target).to_dict()
+    return jobs.registry.start(kind, target).to_dict()
 
 
 class TrackBackfillRequest(BaseModel):
