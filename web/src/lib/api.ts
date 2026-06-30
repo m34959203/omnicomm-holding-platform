@@ -285,12 +285,14 @@ export interface ViolationsDetail {
 export interface FuelDetailRow {
   vehicleId: string; vehicle: string; transport: boolean;
   mileage_km: number; moto_h: number; fuel_l: number;
-  fact_l100: number | null; norm_l100: number | null;
+  fact_l100: number | null; norm_l100: number | null; norm_src: string; over_l: number | null;
   refuel_l: number; drain_l: number; delivery_l: number;
 }
 export interface FuelDetail {
   rows: FuelDetailRow[]; total: number; returned: number; capped: boolean;
-  with_norm: number; from: string; to: string; shifts_available: boolean; source: string;
+  with_norm: number; over_l_total: number; economy_l_total: number;
+  norms_approved: boolean; norms_version: string;
+  from: string; to: string; shifts_available: boolean; source: string;
 }
 export const getFuelDetail = (q: { from?: string; to?: string } = {}) => {
   const p = new URLSearchParams();

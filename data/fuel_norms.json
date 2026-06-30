@@ -1,0 +1,11 @@
+{
+  "version": "2026-06-30",
+  "approved": false,
+  "_comment": "ПРЕДВАРИТЕЛЬНЫЙ справочник норм расхода (л/100 км). approved=false → перерасход помечается «предв.». Замени значения на СОГЛАСОВАННЫЕ и поставь approved=true. Приоритет: vehicles[terminal_id] > норма Omnicomm (5..150) > categories[категория]. Категории: light (легковые/пикапы), bus (автобусы), truck (грузовые/спецтехника).",
+  "categories": {
+    "light": 14,
+    "bus": 30,
+    "truck": 42
+  },
+  "vehicles": {}
+}

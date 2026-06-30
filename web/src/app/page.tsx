@@ -276,7 +276,7 @@ export default function Page() {
             <>
               {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} />}
               {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} />}
-              {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} onVehicle={onVehicle} />}
+              {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} fuelPrice={Number(orgs[0]?.kpi.fuel_price_kzt ?? 0)} onVehicle={onVehicle} />}
               {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onVehicle={onVehicle} />}
               {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
