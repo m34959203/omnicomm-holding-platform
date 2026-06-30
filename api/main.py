@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from omnicomm_report import config
 
-from . import auth_session, cache, excel, jobs, scoping, sync, vehicle
+from . import auth_session, cache, excel, jobs, layouts, scoping, sync, vehicle
 
 # Загрузить .env в окружение (cron его не сорсит) — иначе Settings.from_env()
 # не увидит LOGIN/PASSWORD/SERVICE для live-синка.
@@ -44,6 +44,13 @@ app.add_middleware(
     allow_origins=[o for o in [os.getenv("CORS_ORIGIN")] if o],
     allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
 )
+
+# Рабочие столы / шаблоны (Фаза 2): CRUD + row-level + compose.
+app.include_router(layouts.router)
+try:
+    layouts.seed_system_templates()      # upsert 7 системных шаблонов по стабильным id
+except Exception:  # noqa: BLE001 — seed не должен ронять старт
+    pass
 
 # Период синка по умолчанию. 2 суток: копия КАП (online.omnicomm.ru) медленно
 # отдаёт сводный отчёт — за неделю батчи таймаутят, за 2 суток успевают.
