@@ -3,10 +3,10 @@ import { C, FONT } from "@/lib/atlas";
 
 export interface Period { key: string; name: string; active: boolean; disabled: boolean; onClick: () => void }
 
-export default function Ribbon({ title, subtitle, snapshot, periods, excelHref, onSync, syncing, user, scope, onLogout }: {
+export default function Ribbon({ title, subtitle, snapshot, periods, excelHref, onSync, syncing, user, scope, onLogout, accountsHref }: {
   title: string; subtitle: string; snapshot: string;
   periods: Period[]; excelHref: string; onSync: () => void; syncing: boolean;
-  user?: string; scope?: string | null; onLogout?: () => void;
+  user?: string; scope?: string | null; onLogout?: () => void; accountsHref?: string;
 }) {
   return (
     <div style={{
@@ -38,6 +38,10 @@ export default function Ribbon({ title, subtitle, snapshot, periods, excelHref, 
           {syncing ? "синхр…" : "↻ обновить"}
         </button>
         <a href={excelHref} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 6, padding: "6px 11px", background: C.excel, borderRadius: 6, color: "#fff", fontSize: 11.5, fontWeight: 600 }}>↓ Excel</a>
+        {accountsHref && (
+          <a href={accountsHref} title="Excel со всеми учётками ДЗО (админ/КАП)"
+            style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 6, padding: "6px 11px", background: "#fff", border: `1px solid ${C.line2}`, borderRadius: 6, color: C.muted, fontSize: 11.5, fontWeight: 600 }}>↓ Учётки</a>
+        )}
         {user && (
           <>
             <span style={{ width: 1, height: 22, background: C.line2 }} />
