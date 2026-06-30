@@ -204,51 +204,79 @@ function Empty({ onPick }: { onPick: () => void }) {
 const WCOLOR: Record<string, string> = {
   kpiTile: C.blue, economics: C.green, dzoBars: C.teal, parkDonut: C.amber,
   sensorHealth: "#2e9e5b", maintenance: C.amber, recommendations: C.red,
-  matrix: C.greySoft, violations: C.red, fuel: C.blue, speedTrend: C.amber,
+  matrix: C.muted2, violations: C.red, fuel: C.blue, speedTrend: C.amber,
 };
 
-// Мини-превью раскладки шаблона (как в галерее дашбордов Omnicomm Online).
+// Реалистичный эскиз содержимого виджета (как мини-скрин отчёта Omnicomm Online).
+function sketch(type: string, a: string): React.ReactNode {
+  const bar = (w: number, c = a) => <div style={{ height: 3, width: `${w}%`, background: c, borderRadius: 2, opacity: 0.8 }} />;
+  if (type === "kpiTile")
+    return <div style={{ display: "flex", flexDirection: "column", gap: 3, justifyContent: "center", height: "100%" }}>{bar(35, C.faint2)}<div style={{ height: 7, width: "60%", background: a, borderRadius: 2 }} /></div>;
+  if (type === "parkDonut" || type === "sensorHealth")
+    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}><div style={{ width: 26, height: 26, borderRadius: "50%", border: `5px solid ${a}`, borderRightColor: "#e6e9ee", borderBottomColor: "#e6e9ee" }} /></div>;
+  if (type === "speedTrend")
+    return <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 2, height: "100%", alignContent: "center" }}>{Array.from({ length: 18 }, (_, i) => <div key={i} style={{ height: 5, background: a, borderRadius: 1, opacity: 0.25 + (i % 6) * 0.13 }} />)}</div>;
+  if (type === "matrix" || type === "violations" || type === "fuel")
+    return <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingTop: 2 }}>{bar(100, C.faint2)}{[0, 1, 2, 3].map((i) => bar(100 - i * 6, a))}</div>;
+  // dzoBars / economics / recommendations / maintenance — горизонтальные бары
+  return <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "center", height: "100%" }}>{[90, 70, 55, 40].map((w, i) => <div key={i} style={{ display: "flex", gap: 4, alignItems: "center" }}><div style={{ width: 12, height: 3, background: C.faint2, borderRadius: 2 }} />{bar(w)}</div>)}</div>;
+}
+
+// Мини-превью раскладки шаблона (заголовки виджетов + эскизы содержимого).
 function TplPreview({ widgets }: { widgets: { type: string; w: number; h: number }[] }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gridAutoRows: "12px", gridAutoFlow: "dense", gap: 3, background: "#f3f6fa", borderRadius: 8, padding: 8, height: 104, overflow: "hidden", border: `1px solid ${C.line}` }}>
-      {widgets.map((w, i) => (
-        <div key={i} title={w.type} style={{ gridColumn: `span ${Math.max(1, Math.min(12, w.w))}`, gridRow: `span ${Math.max(1, Math.min(5, w.h))}`, background: WCOLOR[w.type] || C.faint2, borderRadius: 3, opacity: 0.88 }} />
-      ))}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gridAutoRows: "26px", gridAutoFlow: "dense", gap: 4, background: "#eef1f5", borderRadius: 6, padding: 8, height: 150, overflow: "hidden" }}>
+      {widgets.map((w, i) => {
+        const a = WCOLOR[w.type] || C.faint2;
+        return (
+          <div key={i} style={{ gridColumn: `span ${Math.max(1, Math.min(12, w.w))}`, gridRow: `span ${Math.max(1, Math.min(4, w.h))}`, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 3, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ height: 4, background: a, opacity: 0.9, flexShrink: 0 }} />
+            <div style={{ flex: 1, minHeight: 0, padding: "3px 4px", overflow: "hidden" }}>{sketch(w.type, a)}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function Gallery({ tpls, onApply, onBlank, onClose, hasLayout }: {
-  tpls: ServerTemplate[]; onApply: (t: ServerTemplate) => void; onBlank: () => void; onClose: () => void; hasLayout: boolean;
+function Gallery({ tpls, onApply, onBlank, onClose }: {
+  tpls: ServerTemplate[]; onApply: (t: ServerTemplate) => void; onBlank: () => void; onClose: () => void; hasLayout?: boolean;
 }) {
+  const card: React.CSSProperties = {
+    background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, overflow: "hidden",
+    cursor: "pointer", display: "flex", flexDirection: "column", transition: "box-shadow .15s, border-color .15s",
+  };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(20,30,50,.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 12, padding: 20, width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", fontFamily: FONT }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Шаблоны рабочего стола</div>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 12, padding: 22, width: "min(1080px, 96vw)", maxHeight: "88vh", overflow: "auto", fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Добавить рабочий стол</div>
           <button onClick={onClose} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 13, cursor: "pointer", fontWeight: 600 }}>закрыть ✕</button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px,1fr))", gap: 14 }}>
-          <div onClick={onBlank} style={{ border: `1.5px dashed ${C.railLine}`, borderRadius: 10, cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", color: C.muted, minHeight: 200, background: "#fff" }}>
-            <div style={{ fontSize: 30, color: C.blue, lineHeight: 1 }}>+</div><div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>Пустой стол</div>
-          </div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Готовые шаблоны</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 16 }}>
           {tpls.map((t) => {
             const ws = ((t.layout?.widgets as { type: string; w: number; h: number }[]) || []);
             return (
-              <div key={t.id} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(20,30,50,.05)" }}>
-                <div style={{ padding: 10 }}><TplPreview widgets={ws} /></div>
-                <div style={{ padding: "4px 14px 14px", display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, flex: 1 }}>{t.name}</div>
-                    {t.role && <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, background: "#eef4fd", borderRadius: 10, padding: "2px 8px", whiteSpace: "nowrap" }}>{t.role}</span>}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.45, flex: 1 }}>{t.description}</div>
-                  <div style={{ fontSize: 10.5, color: C.faint2 }}>{ws.length} виджетов{t.is_system ? " · системный" : ""}</div>
-                  <button onClick={() => onApply(t)} style={{ ...btn(true), marginTop: 2 }}>{hasLayout ? "Создать стол" : "Использовать"}</button>
+              <div key={t.id} onClick={() => onApply(t)} style={card}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(20,30,50,.12)"; e.currentTarget.style.borderColor = C.blue; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.line; }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderBottom: `1px solid ${C.headRule}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                  {t.role && <span style={{ fontSize: 9.5, fontWeight: 700, color: C.blue, background: "#eef4fd", borderRadius: 10, padding: "2px 7px", whiteSpace: "nowrap" }}>{t.role}</span>}
                 </div>
+                <div style={{ padding: 10 }}><TplPreview widgets={ws} /></div>
+                <div style={{ padding: "0 12px 11px", fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{t.description}</div>
               </div>
             );
           })}
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, textTransform: "uppercase", letterSpacing: ".04em", margin: "20px 0 10px" }}>С нуля</div>
+        <div onClick={onBlank} style={{ ...card, maxWidth: 280, alignItems: "center", justifyContent: "center", minHeight: 120, color: C.muted }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.blue; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.line; }}>
+          <div style={{ fontSize: 30, color: C.blue, lineHeight: 1 }}>+</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>Пустой стол</div>
         </div>
       </div>
     </div>
