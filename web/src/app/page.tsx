@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation,
-  SensorHealth, SpeedThresholds, SpeedTrend, ViolationsForm, excelUrl, getDashboard,
-  getFuel, getGeozones, getJob, getMaintenance, getRecommendations, getSensorHealth,
-  getSnapshots, getSpeedTrend, getViolationsForm, startSync,
+  SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm, excelUrl,
+  getDashboard, getFuel, getGeozones, getJob, getMaintenance, getRecommendations,
+  getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail, getViolationsForm, startSync,
 } from "@/lib/api";
 import {
   Agg, C, DzoRow, FONT, aggregate, buildDzoRows, dzoNodes,
@@ -16,15 +16,17 @@ import Rail from "@/components/atlas/Rail";
 import Overview from "@/components/atlas/Overview";
 import Money from "@/components/atlas/Money";
 import Speed from "@/components/atlas/Speed";
+import Violations from "@/components/atlas/Violations";
 import Trend, { TrendMetric } from "@/components/atlas/Trend";
 import Quality from "@/components/atlas/Quality";
 import Maint from "@/components/atlas/Maint";
 import VehicleCard from "@/components/VehicleCard";
 
-type PageKey = "overview" | "money" | "speed" | "trend" | "quality" | "maint";
+type PageKey = "overview" | "money" | "speed" | "violations" | "trend" | "quality" | "maint";
 const PAGES: [PageKey, string][] = [
   ["overview", "Обзор"], ["money", "Деньги"], ["speed", "Скоростной режим"],
-  ["trend", "Повторяемость"], ["quality", "Качество данных"], ["maint", "Контроль ТО"],
+  ["violations", "Нарушения"], ["trend", "Повторяемость"],
+  ["quality", "Качество данных"], ["maint", "Контроль ТО"],
 ];
 const ACTIVE_WINDOW_S = 7 * 86400;
 
@@ -65,6 +67,8 @@ export default function Page() {
   const [trend, setTrend] = useState<SpeedTrend | null>(null);
   const [trendLoading, setTrendLoading] = useState(false);
   const [metric, setMetric] = useState<TrendMetric>("episodes");
+  const [violDet, setViolDet] = useState<ViolationsDetail | null>(null);
+  const [violDetLoading, setViolDetLoading] = useState(false);
 
   const load = useCallback(async (key?: string) => {
     try {
@@ -105,6 +109,27 @@ export default function Page() {
 
   const setThreshold = (k: keyof SpeedThresholds, v: number) =>
     setThr((s) => ({ ...s, [k]: k === "maxExcess" && v === 0 ? 999 : v }));
+
+  // Детальная таблица нарушений — за период ВЫБРАННОГО снимка + пороги.
+  const periodIso = useMemo(() => {
+    const p = dash?.period;
+    if (!p) return null;
+    const iso = (ts: number) => new Date(ts * 1000).toISOString().slice(0, 10);
+    return { from: iso(p.start_ts), to: iso(p.end_ts) };
+  }, [dash]);
+  useEffect(() => {
+    if (state !== "ready" || !periodIso) return;
+    let alive = true;
+    setViolDetLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const data = await getViolationsDetail({ ...thr, from: periodIso.from, to: periodIso.to });
+        if (alive) setViolDet(data);
+      } catch { if (alive) setViolDet(null); }
+      finally { if (alive) setViolDetLoading(false); }
+    }, 350);
+    return () => { alive = false; clearTimeout(t); };
+  }, [thr, periodIso, state]);
 
   const onSync = async () => {
     if (syncing) return;
@@ -230,6 +255,7 @@ export default function Page() {
               {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} />}
               {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} />}
               {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onVehicle={onVehicle} />}
+              {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
               {page === "quality" && <Quality rows={rows} sensor={sensorS} onVehicle={onVehicle} />}
               {page === "maint" && <Maint rows={rows} maint={maintS} onVehicle={onVehicle} />}

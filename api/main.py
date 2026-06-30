@@ -298,6 +298,23 @@ def speed_trend(
     )
 
 
+@app.get("/api/violations-detail")
+def violations_detail_ep(
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = Query(None),
+    minDurationSec: int = Query(0),
+    minExcess: float = Query(0.0),
+    maxExcess: float = Query(999.0),
+) -> dict:
+    """Детальная таблица нарушений (per-episode, стр.2 Power BI): дата/ТС/локация/
+    ср.скорость/длительность/лимит/превышение/штраф из архива визитов. Скоуп — на фронте."""
+    from . import violations_detail as vd
+    return vd.build_violations_detail(
+        from_iso=from_, to_iso=to,
+        min_duration_s=minDurationSec, min_excess=minExcess, max_excess=maxExcess,
+    )
+
+
 @app.get("/api/maintenance")
 def maintenance(period_key: Optional[str] = Query(None)) -> dict:
     """Контроль ТО (R6): наработка и статусы по парку."""

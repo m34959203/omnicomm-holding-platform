@@ -268,6 +268,29 @@ export interface SpeedTrend {
   params: { minDurationSec: number; minExcess: number; maxExcess: number };
 }
 export interface SpeedThresholds { minDurationSec: number; minExcess: number; maxExcess: number }
+
+// ---- Детальная таблица нарушений (per-episode, P1.4 / стр.2 Power BI) ----
+export interface ViolationDetailRow {
+  vehicleId: string; vehicle: string; geozone: string; limit_kmh: number;
+  avg_speed_kmh: number | null; max_speed_kmh: number; excess_kmh: number;
+  duration_s: number; start_ts: number; public_road: boolean; severity: string;
+  koap_article: string | null; fine_kzt: number | null;
+}
+export interface ViolationsDetail {
+  rows: ViolationDetailRow[]; total: number; returned: number; capped: boolean;
+  from: string; to: string; source: string;
+  params: { minDurationSec: number; minExcess: number; maxExcess: number };
+}
+export const getViolationsDetail = (q: Partial<SpeedThresholds> & { from?: string; to?: string } = {}) => {
+  const p = new URLSearchParams();
+  if (q.from) p.set("from", q.from);
+  if (q.to) p.set("to", q.to);
+  if (q.minDurationSec) p.set("minDurationSec", String(q.minDurationSec));
+  if (q.minExcess) p.set("minExcess", String(q.minExcess));
+  if (q.maxExcess != null && q.maxExcess < 999) p.set("maxExcess", String(q.maxExcess));
+  const qs = p.toString();
+  return get<ViolationsDetail>(`/api/violations-detail${qs ? `?${qs}` : ""}`);
+};
 export const getSpeedTrend = (q: Partial<SpeedThresholds> & { from?: string; to?: string } = {}) => {
   const p = new URLSearchParams();
   if (q.from) p.set("from", q.from);
