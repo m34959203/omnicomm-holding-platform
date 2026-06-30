@@ -11,8 +11,9 @@ const STATUS_COLOR: Record<string, string> = {
   online: C.green, stale: C.amber, offline: C.red, unknown: C.faint2,
 };
 
-export default function Quality({ rows, sensor, onVehicle }: {
-  rows: DzoRow[]; sensor: SensorHealth | null; onVehicle: (id: string, name?: string) => void;
+export default function Quality({ rows, sensor, onSelectDzo, onVehicle }: {
+  rows: DzoRow[]; sensor: SensorHealth | null;
+  onSelectDzo: (orgId: string) => void; onVehicle: (id: string, name?: string) => void;
 }) {
   const counts = sensor?.counts ?? {};
   const total = (counts.online ?? 0) + (counts.stale ?? 0) + (counts.offline ?? 0) + (counts.unknown ?? 0) || 1;
@@ -57,11 +58,11 @@ export default function Quality({ rows, sensor, onVehicle }: {
         </div>
       </Panel>
 
-      <Panel span={4} title="Связь % по ДЗО">
+      <Panel span={4} title="Связь % по ДЗО" right="клик — фильтр">
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {byOrg.map((r) => (
             <BarRow key={r.org_id} name={r.name} w={r.sensorPct * 100} value={Math.round(r.sensorPct * 100) + "%"}
-              color={r.sensorPct < 0.8 ? C.amber : C.green} h={11} />
+              color={r.sensorPct < 0.8 ? C.amber : C.green} h={11} onClick={() => onSelectDzo(r.org_id)} />
           ))}
         </div>
       </Panel>

@@ -41,7 +41,7 @@ export default function Rail({ dzo, selected, onToggle, onClear, summary, geoCou
         <div style={label}>Пороги превышения</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           <div>
-            <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>Длительность визита ≥ сек</div>
+            <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>Длительность пребывания ≥ сек</div>
             {numInput("minDurationSec", thresholds.minDurationSec, "0")}
           </div>
           <div style={{ display: "flex", gap: 6 }}>

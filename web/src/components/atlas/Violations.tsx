@@ -72,7 +72,7 @@ export default function Violations({ data, loading, inScope, onVehicle }: {
           </div>
         )}
         <div style={{ fontSize: 10.5, color: C.faint, padding: "8px 13px 2px", lineHeight: 1.5 }}>
-          Средняя скорость — из визит-агрегата Omnicomm; «—» где данных нет или они некорректны (avg&gt;max). Штраф ₸ — только дороги общего пользования (КоАП ст.592).
+          Средняя скорость — из агрегата по геозонам Omnicomm; «—» где данных нет или они некорректны (avg&gt;max). Штраф ₸ — только дороги общего пользования (КоАП ст.592).
         </div>
       </Panel>
     </div>

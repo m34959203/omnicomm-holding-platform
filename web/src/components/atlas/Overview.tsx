@@ -1,21 +1,22 @@
 "use client";
 import { Economics } from "@/lib/api";
 import { Agg, C, DzoRow, compactM, mlnTg, ru } from "@/lib/atlas";
-import { BarRow, Donut, Gauge, Kpi, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./ui";
+import { BarRow, Donut, Gauge, Kpi, Legend, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./ui";
 
 const TYPE_COLORS = [C.blue, C.green, C.amber, C.teal, C.greySoft, "#7d6bd0", "#c46aa5", C.faint2];
 
-export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }: {
+export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal, onSelectDzo, onJump }: {
   rows: DzoRow[]; agg: Agg; eco: Economics | null;
   sensorCounts: Record<string, number>; overdueTotal: number;
+  onSelectDzo: (orgId: string) => void; onJump: (page: string) => void;
 }) {
   const kpis = [
-    { label: "Потенциал экономии", value: mlnTg(agg.potential), color: C.green },
-    { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber },
-    { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink },
-    { label: "₸ / км", value: agg.rateOk ? ru(agg.cpkm) + " ₸" : "—", color: C.teal },
-    { label: "Превышения", value: ru(agg.episodes), color: C.amber },
-    { label: "Связь / просрочено ТО", value: Math.round(agg.sensorPct * 100) + "% · " + overdueTotal, color: C.blue },
+    { label: "Потенциал экономии", value: mlnTg(agg.potential), color: C.green, jump: "money" },
+    { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber, jump: "money" },
+    { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink, jump: "fuel" },
+    { label: "₸ / км", value: agg.rateOk ? ru(agg.cpkm) + " ₸" : "—", color: C.teal, jump: "fuel" },
+    { label: "Превышения", value: ru(agg.episodes), color: C.amber, jump: "violations" },
+    { label: "Связь / просрочено ТО", value: Math.round(agg.sensorPct * 100) + "% · " + overdueTotal, color: C.blue, jump: "quality" },
   ];
 
   const byPot = [...rows].filter((r) => r.potential > 0).sort((a, b) => b.potential - a.potential).slice(0, 8);
@@ -48,12 +49,12 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 12, alignContent: "start" }}>
-      {kpis.map((k, i) => <Kpi key={i} {...k} />)}
+      {kpis.map((k, i) => <Kpi key={i} label={k.label} value={k.value} color={k.color} onClick={() => onJump(k.jump)} />)}
 
-      <Panel span={5} title="Потенциал экономии по ДЗО · млн ₸">
+      <Panel span={5} title="Потенциал экономии по ДЗО · млн ₸" right="клик — фильтр по ДЗО">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {byPot.length ? byPot.map((r) => (
-            <BarRow key={r.org_id} name={r.name} w={r.potential / maxPot * 100} value={compactM(r.potential)} color={C.green} />
+            <BarRow key={r.org_id} name={r.name} w={r.potential / maxPot * 100} value={compactM(r.potential)} color={C.green} onClick={() => onSelectDzo(r.org_id)} />
           )) : <Empty />}
         </div>
       </Panel>
@@ -74,6 +75,7 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
             </div>
           )) : <Empty />}
         </div>
+        <Legend items={[{ color: C.blue, label: "измеримо" }, { color: C.amber, label: "≈ оценка" }]} />
       </Panel>
 
       <Panel span={3} title="Качество данных">
@@ -86,12 +88,12 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
         <Donut slices={parkSlices} />
       </Panel>
 
-      <Panel span={5} title="Превышения по ДЗО" right="общ. дороги · технодороги">
+      <Panel span={5} title="Превышения по ДЗО" right="клик — фильтр по ДЗО">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {byViol.length ? byViol.map((r) => {
             const t = r.pubEp + r.techEp || 1;
             return (
-              <div key={r.org_id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div key={r.org_id} onClick={() => onSelectDzo(r.org_id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <div style={{ width: 96, fontSize: 11.5, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                 <div style={{ flex: 1, height: 15, background: C.track, borderRadius: 2, overflow: "hidden", display: "flex" }}>
                   <div style={{ display: "flex", width: `${r.episodes / maxViol * 100}%`, height: "100%" }}>
@@ -104,6 +106,7 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
             );
           }) : <Empty />}
         </div>
+        <Legend items={[{ color: C.red, label: "дороги общего пользования (КоАП)" }, { color: C.blueSoft, label: "технодороги (СТ КАП)" }]} />
       </Panel>
 
       <Panel span={3} title="Связь терминалов">
@@ -121,7 +124,7 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
         </div>
       </Panel>
 
-      <Panel span={12} title="Матрица по ДЗО">
+      <Panel span={12} title="Матрица по ДЗО" right="клик по строке — фильтр по ДЗО">
         {tableWrap(<>
           <thead><tr style={theadStyle}>
             <Th>ДЗО</Th><Th right>ТС</Th><Th right>Потенциал ₸</Th><Th right>Топливо ₸</Th>
@@ -129,7 +132,7 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
           </tr></thead>
           <tbody>
             {matrix.map((r) => (
-              <tr key={r.org_id} style={trRule}>
+              <tr key={r.org_id} style={{ ...trRule, cursor: "pointer" }} onClick={() => onSelectDzo(r.org_id)}>
                 <Td bold>{r.name}</Td>
                 <Td right color={C.muted}>{ru(r.veh)}</Td>
                 <Td right color={C.green}>{r.potential ? compactM(r.potential) : "—"}</Td>

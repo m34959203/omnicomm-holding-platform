@@ -1,11 +1,12 @@
 "use client";
 import { Recommendation, ViolationRow } from "@/lib/api";
 import { Agg, C, DzoRow, ru, severityBuckets, zonesFromViol } from "@/lib/atlas";
-import { BarRow, Kpi, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./ui";
+import { BarRow, Kpi, Legend, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./ui";
 
-export default function Speed({ rows, agg, recs, violRows, onVehicle }: {
+export default function Speed({ rows, agg, recs, violRows, onSelectDzo, onJump, onVehicle }: {
   rows: DzoRow[]; agg: Agg; recs: Recommendation[]; violRows: ViolationRow[];
-  onVehicle: (id: string, name?: string) => void;
+  onSelectDzo: (orgId: string) => void; onJump: (page: string) => void;
+  onVehicle: (id: string, name?: string, ts?: number) => void;
 }) {
   const sev = severityBuckets(violRows);
   const kpis = [
@@ -32,14 +33,14 @@ export default function Speed({ rows, agg, recs, violRows, onVehicle }: {
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 12, alignContent: "start" }}>
-      {kpis.map((k, i) => <Kpi key={i} {...k} span={3} />)}
+      {kpis.map((k, i) => <Kpi key={i} {...k} span={3} onClick={() => onJump("violations")} />)}
 
-      <Panel span={6} title="Превышения по ДЗО" right="общ. дороги · технодороги">
+      <Panel span={6} title="Превышения по ДЗО" right="клик — фильтр по ДЗО">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {byViol.map((r) => {
             const t = r.pubEp + r.techEp || 1;
             return (
-              <div key={r.org_id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div key={r.org_id} onClick={() => onSelectDzo(r.org_id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <div style={{ width: 96, fontSize: 11.5, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                 <div style={{ flex: 1, height: 15, background: C.track, borderRadius: 2, overflow: "hidden", display: "flex" }}>
                   <div style={{ display: "flex", width: `${r.episodes / maxViol * 100}%`, height: "100%" }}>
@@ -52,6 +53,7 @@ export default function Speed({ rows, agg, recs, violRows, onVehicle }: {
             );
           })}
         </div>
+        <Legend items={[{ color: C.red, label: "дороги общего пользования (КоАП)" }, { color: C.blueSoft, label: "технодороги (СТ КАП)" }]} />
       </Panel>
 
       <Panel span={3} title="Тяжесть">

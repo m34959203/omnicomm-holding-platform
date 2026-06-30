@@ -115,12 +115,21 @@ export default function Trend({ trend, loading, metric, onMetric, dzoRows, vehTo
       <Panel span={12}
         title={`Повторяемость превышений · ${metric === "episodes" ? "ТС" : "ДЗО"} × месяц`}
         right={`${trend.from} — ${trend.to} · ${ru(trend.episodes)} эпизодов · порог дл.≥${trend.params.minDurationSec}с · превыш. ${trend.params.minExcess}–${trend.params.maxExcess === 999 ? "∞" : trend.params.maxExcess} км/ч`}>
-        <div style={{ display: "flex", gap: 2, background: C.bg, borderRadius: 6, padding: 2, width: "fit-content", marginBottom: 12 }}>
-          {tabs.map(([k, l]) => (
-            <button key={k} onClick={() => onMetric(k)}
-              style={{ padding: "5px 12px", border: "none", borderRadius: 5, cursor: "pointer", font: "600 11px/1 'Segoe UI',Roboto,sans-serif",
-                ...(k === metric ? { background: C.blue, color: "#fff" } : { background: "transparent", color: C.muted }) }}>{l}</button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 2, background: C.bg, borderRadius: 6, padding: 2, width: "fit-content" }}>
+            {tabs.map(([k, l]) => (
+              <button key={k} onClick={() => onMetric(k)}
+                style={{ padding: "5px 12px", border: "none", borderRadius: 5, cursor: "pointer", font: "600 11px/1 'Segoe UI',Roboto,sans-serif",
+                  ...(k === metric ? { background: C.blue, color: "#fff" } : { background: "transparent", color: C.muted }) }}>{l}</button>
+            ))}
+          </div>
+          {/* цветовая шкала хитмапа */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10.5, color: C.muted }}>
+            <span>меньше</span>
+            <div style={{ width: 120, height: 10, borderRadius: 3, background: "linear-gradient(90deg, rgb(228,243,234), rgb(247,232,200), rgb(212,69,59))" }} />
+            <span>больше</span>
+            <span style={{ color: C.faint2 }}>· {metric === "episodes" ? "эпизодов/мес" : metric === "perVehicle" ? "эпизодов на ТС" : "доля нарушителей"}</span>
+          </div>
         </div>
 
         <div style={{ overflowX: "auto" }}>

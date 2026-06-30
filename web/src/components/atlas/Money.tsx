@@ -1,21 +1,22 @@
 "use client";
 import { Economics } from "@/lib/api";
 import { Agg, C, DzoRow, compactM, mlnTg, ru } from "@/lib/atlas";
-import { BarRow, Donut, Kpi, Panel } from "./ui";
+import { BarRow, Donut, Kpi, Legend, Panel } from "./ui";
 
 const TYPE_COLORS = [C.blue, C.green, C.amber, C.teal, C.greySoft, "#7d6bd0", "#c46aa5", C.faint2];
 
-export default function Money({ rows, agg, eco, overrunKzt, overrunProvisional }: {
+export default function Money({ rows, agg, eco, overrunKzt, overrunProvisional, onSelectDzo, onJump }: {
   rows: DzoRow[]; agg: Agg; eco: Economics | null;
   overrunKzt: number; overrunProvisional: boolean;
+  onSelectDzo: (orgId: string) => void; onJump: (page: string) => void;
 }) {
   const kpis = [
-    { label: "Потенциал экономии", value: mlnTg(agg.potential), color: C.green, sub: "холостой ход + износ" },
-    { label: "Перерасход к норме", value: overrunKzt > 0 ? mlnTg(overrunKzt) : "—", color: C.red, sub: overrunProvisional ? "предв. · детали в «Топливо»" : "детали в «Топливо»" },
-    { label: "COI / месяц", value: eco ? mlnTg(eco.coi_monthly_kzt) : "—", color: C.amber, sub: "стоимость простоя" },
-    { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber, sub: "≈ оценка" },
-    { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink, sub: "за период" },
-    { label: "₸ / км", value: agg.rateOk ? ru(agg.cpkm) + " ₸" : "—", color: C.teal, sub: "по движущимся ТС" },
+    { label: "Потенциал экономии", value: mlnTg(agg.potential), color: C.green, sub: "холостой ход + износ", jump: "fuel" },
+    { label: "Перерасход к норме", value: overrunKzt > 0 ? mlnTg(overrunKzt) : "—", color: C.red, sub: overrunProvisional ? "предв. · детали в «Топливо»" : "детали в «Топливо»", jump: "fuel" },
+    { label: "COI / месяц", value: eco ? mlnTg(eco.coi_monthly_kzt) : "—", color: C.amber, sub: "стоимость простоя", jump: "maint" },
+    { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber, sub: "≈ оценка", jump: "maint" },
+    { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink, sub: "за период", jump: "fuel" },
+    { label: "₸ / км", value: agg.rateOk ? ru(agg.cpkm) + " ₸" : "—", color: C.teal, sub: "по движущимся ТС", jump: "fuel" },
   ];
 
   const byPot = [...rows].filter((r) => r.potential > 0).sort((a, b) => b.potential - a.potential).slice(0, 8);
@@ -41,11 +42,11 @@ export default function Money({ rows, agg, eco, overrunKzt, overrunProvisional }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 12, alignContent: "start" }}>
-      {kpis.map((k, i) => <Kpi key={i} {...k} />)}
+      {kpis.map((k, i) => <Kpi key={i} label={k.label} value={k.value} color={k.color} sub={k.sub} onClick={() => onJump(k.jump)} />)}
 
-      <Panel span={5} title="Потенциал экономии по ДЗО · млн ₸">
+      <Panel span={5} title="Потенциал экономии по ДЗО · млн ₸" right="клик — фильтр по ДЗО">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          {byPot.map((r) => <BarRow key={r.org_id} name={r.name} w={r.potential / maxPot * 100} value={compactM(r.potential)} color={C.green} />)}
+          {byPot.map((r) => <BarRow key={r.org_id} name={r.name} w={r.potential / maxPot * 100} value={compactM(r.potential)} color={C.green} onClick={() => onSelectDzo(r.org_id)} />)}
         </div>
       </Panel>
 
@@ -63,21 +64,22 @@ export default function Money({ rows, agg, eco, overrunKzt, overrunProvisional }
             </div>
           ))}
         </div>
+        <Legend items={[{ color: C.blue, label: "измеримо" }, { color: C.amber, label: "≈ оценка" }]} />
       </Panel>
 
       <Panel span={3} title="Парк по ДЗО">
         <Donut slices={parkSlices} size={84} hole={18} />
       </Panel>
 
-      <Panel span={6} title="Стоимость 1 км по ДЗО · ₸">
+      <Panel span={6} title="Стоимость 1 км по ДЗО · ₸" right="клик — фильтр по ДЗО">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          {cpkm.map((r) => <BarRow key={r.org_id} name={r.name} w={r.cpkm / maxCpkm * 100} value={ru(r.cpkm) + " ₸"} color={C.teal} h={13} />)}
+          {cpkm.map((r) => <BarRow key={r.org_id} name={r.name} w={r.cpkm / maxCpkm * 100} value={ru(r.cpkm) + " ₸"} color={C.teal} h={13} onClick={() => onSelectDzo(r.org_id)} />)}
         </div>
       </Panel>
 
-      <Panel span={6} title="Расход л/100 км по ДЗО · факт" right="норма не задана">
+      <Panel span={6} title="Расход л/100 км по ДЗО · факт" right="клик — фильтр · норма в «Топливо»">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          {lkm.map((r) => <BarRow key={r.org_id} name={r.name} w={r.l100 / maxL * 100} value={ru(r.l100, 1) + " л"} color={C.blue} h={13} />)}
+          {lkm.map((r) => <BarRow key={r.org_id} name={r.name} w={r.l100 / maxL * 100} value={ru(r.l100, 1) + " л"} color={C.blue} h={13} onClick={() => onSelectDzo(r.org_id)} />)}
         </div>
       </Panel>
     </div>
