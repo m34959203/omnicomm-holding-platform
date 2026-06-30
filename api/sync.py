@@ -194,16 +194,33 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
     from omnicomm_report import dashboard
     holding_id = kpi_tree[0].org.org_id if kpi_tree else None
     eco = None
+    eco_by_org: dict = {}
     if holding_id:
         # Вентиль доверия: экономику считаем ТОЛЬКО по транспорту (без АЗС/ёмкостей/ФЭС).
         transport = [v for v in vehicles if classify.is_transport(v.name)]
-        rep = dashboard.build_org_report(
-            holding_id, transport, period, tree,
-            vehicle_org=vehicle_org, fuel_price_kzt=fuel_price_kzt)
-        eco = economics.build_economics(rep)
-        if eco is not None:
-            eco.worst_vehicles = [
-                (n, v) for (n, v) in eco.worst_vehicles if classify.is_transport(n)]
+
+        def _eco_for(org_id):
+            rep_o = dashboard.build_org_report(
+                org_id, transport, period, tree,
+                vehicle_org=vehicle_org, fuel_price_kzt=fuel_price_kzt)
+            e = economics.build_economics(rep_o)
+            if e is not None:
+                e.worst_vehicles = [(n, v) for (n, v) in e.worst_vehicles if classify.is_transport(n)]
+            return e
+
+        eco = _eco_for(holding_id)
+        # Экономика ПО КАЖДОМУ узлу — для серверного скоупа ДЗО (BUG-7), из тех же
+        # transport-ТС по поддереву (без обращения к копе).
+        def _walk(nodes):
+            for n in nodes:
+                try:
+                    e = _eco_for(n.org.org_id)
+                    if e is not None:
+                        eco_by_org[str(n.org.org_id)] = serialize.economics_dict(e)
+                except Exception:  # noqa: BLE001 — узел без данных не должен ронять синк
+                    pass
+                _walk(n.children)
+        _walk(kpi_tree)
     recs = recommendations.recommend_fleet(
         violations, names={str(v.vehicle_id): v.name for v in vehicles})
     recs = [r for r in recs if classify.is_transport(getattr(r, "name", None))]
@@ -215,6 +232,7 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
                   "with_data": sum(1 for v in vehicles if getattr(v, "has_data", False))},
         "orgs": serialize.kpi_tree(kpi_tree),
         "economics": serialize.economics_dict(eco) if eco else None,
+        "economics_by_org": eco_by_org,
         "recommendations": [serialize.recommendation_dict(r) for r in recs],
         "vehicle_org": dict(vehicle_org),
         "geozones": serialize.geozone_features_json(raw_geozones),

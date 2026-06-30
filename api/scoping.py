@@ -56,7 +56,11 @@ def scope_snapshot(snap: dict, org_id: str) -> dict:
     out = dict(snap)
     out["orgs"] = [node]
     out["vehicle_org"] = {t: o for t, o in vo_all.items() if str(o) in ids}
-    out["economics"] = None   # холдинг-уровень, корректно не скоупится → прочерк
+    # Экономика по поддереву узла (BUG-7): берём предрасчитанную на синке per-org.
+    # Нет в снапшоте (старый снимок) → None (честный прочерк, не холдинг-числа).
+    ebo = snap.get("economics_by_org") or {}
+    out["economics"] = ebo.get(str(org_id))
+    out["economics_by_org"] = {k: v for k, v in ebo.items() if k in ids}   # только своё поддерево
     out["fleet"] = {"vehicles": node.get("vehicle_count", 0),
                     "with_data": (node.get("kpi") or {}).get("vehicles_with_data", 0)}
 

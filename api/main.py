@@ -286,6 +286,7 @@ def dashboard(request: Request, period_key: Optional[str] = Query(None)) -> dict
     snap = _snapshot(period_key, request)
     return {"period": snap.get("period"), "fleet": snap.get("fleet"),
             "orgs": snap.get("orgs"), "economics": snap.get("economics"),
+            "economics_by_org": snap.get("economics_by_org") or {},
             "meta": snap.get("_meta")}
 
 
