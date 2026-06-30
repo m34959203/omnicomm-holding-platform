@@ -57,12 +57,23 @@ def _subtree(org_id: Optional[str]) -> Optional[set]:
 
 
 def _can_view(p: dict, owner: Optional[str], org_id: Optional[str]) -> bool:
+    """Видимость ШАБЛОНОВ: admin / владелец / org в поддереве (шаблоны ДЗО-общие)."""
     if p["org_id"] is None:                 # admin / КАП-холдинг
         return True
     if owner == p["user_id"]:
         return True
     sub = _subtree(p["org_id"]) or set()
     return org_id is not None and str(org_id) in sub
+
+
+def _view_layout(p: dict, lay: dict) -> bool:
+    """Видимость СТОЛА: приватный по умолчанию; admin/владелец, либо shared в поддереве."""
+    if p["org_id"] is None or lay.get("owner") == p["user_id"]:
+        return True
+    if lay.get("shared") and lay.get("org_id") is not None:
+        # виден тем, кто в поддереве ДЗО стола (диспетчерам того же/нижнего ДЗО)
+        return str(p["org_id"]) in (_subtree(lay["org_id"]) or set())
+    return False
 
 
 def migrate_layout(layout: dict) -> dict:
@@ -84,6 +95,7 @@ class LayoutBody(BaseModel):
     name: str
     layout: dict
     is_default: bool = False
+    shared: bool = False
 
 
 class TemplateBody(BaseModel):
@@ -96,7 +108,7 @@ class TemplateBody(BaseModel):
 # ---- Layouts ----
 @router.get("/api/layouts")
 def list_layouts(p: dict = Depends(principal)) -> dict:
-    items = [layout_view(x) for x in st.list_layouts() if _can_view(p, x["owner"], x["org_id"])]
+    items = [layout_view(x) for x in st.list_layouts() if _view_layout(p, x)]
     return {"layouts": items}
 
 
@@ -109,7 +121,7 @@ def get_default(p: dict = Depends(principal)) -> dict:
 @router.get("/api/layouts/{lid}")
 def get_layout(lid: str, p: dict = Depends(principal)) -> dict:
     x = st.get_layout(lid)
-    if not x or not _can_view(p, x["owner"], x["org_id"]):
+    if not x or not _view_layout(p, x):
         raise HTTPException(404, "Стол не найден")
     return {"layout": layout_view(x)}
 
@@ -118,27 +130,29 @@ def get_layout(lid: str, p: dict = Depends(principal)) -> dict:
 def create_layout(body: LayoutBody, p: dict = Depends(principal)) -> dict:
     _validate_layout(body.layout)
     x = st.upsert_layout(lid=st.new_id(), owner=p["user_id"], org_id=p["org_id"],
-                         name=body.name, layout=migrate_layout(body.layout), is_default=body.is_default)
+                         name=body.name, layout=migrate_layout(body.layout),
+                         is_default=body.is_default, shared=body.shared)
     return {"layout": layout_view(x)}
 
 
 @router.put("/api/layouts/{lid}")
 def update_layout(lid: str, body: LayoutBody, p: dict = Depends(principal)) -> dict:
     cur = st.get_layout(lid)
-    if not cur or not _can_view(p, cur["owner"], cur["org_id"]):
+    if not cur or not _view_layout(p, cur):
         raise HTTPException(404, "Стол не найден")
     if cur["owner"] != p["user_id"] and p["org_id"] is not None:
         raise HTTPException(403, "Нет прав на изменение")
     _validate_layout(body.layout)
     x = st.upsert_layout(lid=lid, owner=cur["owner"], org_id=cur["org_id"],
-                         name=body.name, layout=migrate_layout(body.layout), is_default=body.is_default)
+                         name=body.name, layout=migrate_layout(body.layout),
+                         is_default=body.is_default, shared=body.shared)
     return {"layout": layout_view(x)}
 
 
 @router.delete("/api/layouts/{lid}")
 def remove_layout(lid: str, p: dict = Depends(principal)) -> dict:
     cur = st.get_layout(lid)
-    if not cur or not _can_view(p, cur["owner"], cur["org_id"]):
+    if not cur or not _view_layout(p, cur):
         raise HTTPException(404, "Стол не найден")
     if cur["owner"] != p["user_id"] and p["org_id"] is not None:
         raise HTTPException(403, "Нет прав на удаление")
@@ -200,7 +214,7 @@ def apply_template(tid: str, p: dict = Depends(principal)) -> dict:
 @router.post("/api/layouts/{lid}/save-as-template")
 def save_as_template(lid: str, body: TemplateBody, p: dict = Depends(principal)) -> dict:
     cur = st.get_layout(lid)
-    if not cur or not _can_view(p, cur["owner"], cur["org_id"]):
+    if not cur or not _view_layout(p, cur):
         raise HTTPException(404, "Стол не найден")
     x = st.upsert_template(tid=st.new_id(), owner=p["user_id"], org_id=p["org_id"], name=body.name or cur["name"],
                            role=body.role, description=body.description, layout=migrate_layout(cur["layout"]))
@@ -225,7 +239,7 @@ def compose(body: ComposeBody, request: Request, p: dict = Depends(principal)) -
     secs = body.sections
     if not secs and body.layout_id:
         lay = st.get_layout(body.layout_id)
-        if not lay or not _can_view(p, lay["owner"], lay["org_id"]):
+        if not lay or not _view_layout(p, lay):
             raise HTTPException(404, "Стол не найден")
         # секции = dataKey виджетов (фронт-реестр их не знает на сервере → берём типовые)
         secs = sorted({_TYPE_SECTION.get(w.get("type"), "dashboard") for w in (lay["layout"].get("widgets") or [])})
@@ -247,6 +261,89 @@ def compose(body: ComposeBody, request: Request, p: dict = Depends(principal)) -
 @router.get("/api/sections/catalog")
 def sections_catalog(p: dict = Depends(principal)) -> dict:
     return {"sections": sorted(ALLOWED_SECTIONS)}
+
+
+# ---- Расписание Excel-отчёта на почту (Фаза 3) ----
+class ScheduleBody(BaseModel):
+    email: str
+    frequency: str = "daily"        # daily | weekly
+    hour: int = 6                   # час UTC отправки
+    layout_id: Optional[str] = None
+
+
+def _sched_view(s: dict) -> dict:
+    return {"id": s["id"], "email": s["email"], "frequency": s["frequency"], "hour": s["hour"],
+            "enabled": s["enabled"], "layout_id": s["layout_id"], "last_sent": s["last_sent"]}
+
+
+@router.get("/api/schedules")
+def list_schedules(p: dict = Depends(principal)) -> dict:
+    return {"schedules": [_sched_view(s) for s in st.list_schedules(owner=p["user_id"])]}
+
+
+@router.post("/api/schedules")
+def create_schedule(body: ScheduleBody, p: dict = Depends(principal)) -> dict:
+    if "@" not in (body.email or "") or body.frequency not in ("daily", "weekly"):
+        raise HTTPException(400, "Неверный e-mail или периодичность")
+    s = st.create_schedule(owner=p["user_id"], org_id=p["org_id"], email=body.email.strip(),
+                           frequency=body.frequency, hour=max(0, min(23, body.hour)), layout_id=body.layout_id)
+    return {"schedule": _sched_view(s)}
+
+
+@router.delete("/api/schedules/{sid}")
+def delete_schedule(sid: str, p: dict = Depends(principal)) -> dict:
+    s = st.get_schedule(sid)
+    if not s or (s["owner"] != p["user_id"] and p["org_id"] is not None):
+        raise HTTPException(404, "Расписание не найдено")
+    st.delete_schedule(sid)
+    return {"ok": True}
+
+
+@router.post("/api/schedules/run")
+def run_schedules() -> dict:
+    """Обработать готовые к отправке расписания (вызывается cron'ом ежечасно).
+    Без принципала — действует только по сохранённым расписаниям; SMTP-no-op без креды."""
+    return send_due_schedules()
+
+
+def send_due_schedules() -> dict:
+    import os
+    import tempfile
+    import time
+    from omnicomm_report import mailer
+    from . import excel
+    now = int(time.time())
+    hour = time.gmtime(now).tm_hour
+    sent, skipped = 0, 0
+    for s in st.list_schedules():
+        if not s["enabled"]:
+            continue
+        period = 7 * 86400 if s["frequency"] == "weekly" else 86400
+        if s["hour"] != hour or (now - (s["last_sent"] or 0)) < period - 3600:
+            skipped += 1
+            continue
+        snap = cache.latest_snapshot()
+        if snap is None:
+            skipped += 1
+            continue
+        if s["org_id"]:
+            snap = scoping.scope_snapshot(snap, s["org_id"])
+        try:
+            data = excel.build_workbook(snap)
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+                f.write(data)
+                path = f.name
+            label = (snap.get("_meta") or {}).get("label") or "отчёт"
+            ok = mailer.send_report(s["email"], f"Автопарк КАП — отчёт ({label})",
+                                    "Автоматический отчёт по автопарку во вложении.", [path])
+            os.unlink(path)
+            if ok:
+                st.mark_sent(s["id"], now); sent += 1
+            else:
+                skipped += 1   # SMTP не настроен — не помечаем отправленным
+        except Exception:  # noqa: BLE001
+            skipped += 1
+    return {"sent": sent, "skipped": skipped, "smtp": mailer.smtp_configured()}
 
 
 # type→section для compose по layout_id (зеркало dataKey из фронт-реестра)
@@ -319,8 +416,8 @@ def seed_system_templates() -> None:
 
 def layout_view(x: dict) -> dict:
     return {"id": x["id"], "name": x["name"], "org_id": x["org_id"], "owner": x["owner"],
-            "is_default": x["is_default"], "layout": migrate_layout(x["layout"]),
-            "updated_at": x["updated_at"]}
+            "is_default": x["is_default"], "shared": x.get("shared", False),
+            "layout": migrate_layout(x["layout"]), "updated_at": x["updated_at"]}
 
 
 def tpl_view(x: dict) -> dict:

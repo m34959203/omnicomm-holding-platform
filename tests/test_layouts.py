@@ -68,6 +68,28 @@ def test_migrate_sets_version(client):
     assert layouts.migrate_layout({"widgets": []})["schemaVersion"] == st.SCHEMA_VERSION
 
 
+def test_sharing_readonly(client, monkeypatch):
+    # дерево: A → C (C в поддереве A)
+    monkeypatch.setattr(cache, "latest_snapshot", lambda: {"orgs": [{"org_id": "A", "children": [{"org_id": "C", "children": []}]}]})
+    _as({"user_id": "pa", "org_id": "A", "role": "manager"})
+    sh = client.post("/api/layouts", json={"name": "sh", "layout": {"widgets": []}, "shared": True}).json()["layout"]["id"]
+    pr = client.post("/api/layouts", json={"name": "pr", "layout": {"widgets": []}}).json()["layout"]["id"]
+    _as({"user_id": "pc", "org_id": "C", "role": "manager"})
+    assert client.get(f"/api/layouts/{sh}").status_code == 200        # shared виден в поддереве
+    assert client.get(f"/api/layouts/{pr}").status_code == 404        # приватный — нет
+    assert client.put(f"/api/layouts/{sh}", json={"name": "x", "layout": {"widgets": []}}).status_code == 403  # только чтение
+
+
+def test_schedule_crud(client):
+    _as(A)
+    sid = client.post("/api/schedules", json={"email": "x@kap.kz", "frequency": "daily", "hour": 6}).json()["schedule"]["id"]
+    assert any(s["id"] == sid for s in client.get("/api/schedules").json()["schedules"])
+    assert client.post("/api/schedules", json={"email": "bad", "frequency": "daily"}).status_code == 400
+    _as(B)   # чужое расписание не видно/не удалить
+    assert all(s["id"] != sid for s in client.get("/api/schedules").json()["schedules"])
+    assert client.delete(f"/api/schedules/{sid}").status_code == 404
+
+
 def test_system_template_no_delete(client):
     _as(ADMIN)
     sysid = next(t["id"] for t in client.get("/api/templates").json()["templates"] if t["is_system"])

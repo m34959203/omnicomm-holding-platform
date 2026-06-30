@@ -279,7 +279,11 @@ export const getSnapshots = () => get<Meta[]>(`/api/snapshots`);
 // ---- Рабочие столы / шаблоны (Фаза 2, серверное хранение) ----
 export interface ServerLayout {
   id: string; name: string; org_id: string | null; owner: string;
-  is_default: boolean; layout: Record<string, unknown>; updated_at: number;
+  is_default: boolean; shared?: boolean; layout: Record<string, unknown>; updated_at: number;
+}
+export interface Schedule {
+  id: string; email: string; frequency: string; hour: number; enabled: boolean;
+  layout_id: string | null; last_sent: number;
 }
 export interface ServerTemplate {
   id: string; name: string; role: string; description: string;
@@ -298,13 +302,17 @@ export const getLayouts = () => get<{ layouts: ServerLayout[] }>("/api/layouts")
 export const getDefaultLayout = () => get<{ layout: ServerLayout | null }>("/api/layouts/default");
 export const createLayout = (name: string, layout: Record<string, unknown>, is_default = false) =>
   send<{ layout: ServerLayout }>("/api/layouts", "POST", { name, layout, is_default });
-export const updateLayout = (id: string, name: string, layout: Record<string, unknown>) =>
-  send<{ layout: ServerLayout }>(`/api/layouts/${id}`, "PUT", { name, layout });
+export const updateLayout = (id: string, name: string, layout: Record<string, unknown>, shared = false) =>
+  send<{ layout: ServerLayout }>(`/api/layouts/${id}`, "PUT", { name, layout, shared });
 export const deleteLayout = (id: string) => send<{ ok: boolean }>(`/api/layouts/${id}`, "DELETE");
 export const getTemplates = () => get<{ templates: ServerTemplate[] }>("/api/templates");
 export const applyTemplate = (id: string) => send<{ layout: ServerLayout }>(`/api/templates/${id}/apply`, "POST");
 export const saveAsTemplate = (id: string, name: string, role = "", description = "") =>
   send<{ template: ServerTemplate }>(`/api/layouts/${id}/save-as-template`, "POST", { name, role, description });
+export const getSchedules = () => get<{ schedules: Schedule[] }>("/api/schedules");
+export const createSchedule = (email: string, frequency: string, hour: number, layout_id?: string) =>
+  send<{ schedule: Schedule }>("/api/schedules", "POST", { email, frequency, hour, layout_id });
+export const deleteSchedule = (id: string) => send<{ ok: boolean }>(`/api/schedules/${id}`, "DELETE");
 
 // ---- Повторяемость / тренд превышений (вкладка speed-trend) ----
 export interface SpeedTrendRow {
