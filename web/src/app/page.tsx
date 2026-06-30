@@ -23,13 +23,15 @@ import Fuel from "@/components/atlas/Fuel";
 import Quality from "@/components/atlas/Quality";
 import Maint from "@/components/atlas/Maint";
 import Login from "@/components/atlas/Login";
+import Desktop from "@/components/atlas/Desktop";
+import { WidgetData } from "@/widgets/registry";
 import VehicleCard from "@/components/VehicleCard";
 
-type PageKey = "overview" | "money" | "fuel" | "speed" | "violations" | "trend" | "quality" | "maint";
+type PageKey = "overview" | "money" | "fuel" | "speed" | "violations" | "trend" | "quality" | "maint" | "desktop";
 const PAGES: [PageKey, string][] = [
   ["overview", "Обзор"], ["money", "Деньги"], ["fuel", "Топливо"],
   ["speed", "Скоростной режим"], ["violations", "Нарушения"], ["trend", "Повторяемость"],
-  ["quality", "Качество данных"], ["maint", "Контроль ТО"],
+  ["quality", "Качество данных"], ["maint", "Контроль ТО"], ["desktop", "Рабочий стол"],
 ];
 const ACTIVE_WINDOW_S = 7 * 86400;
 
@@ -267,6 +269,14 @@ export default function Page() {
 
   const onVehicle = (id: string, name?: string, ts?: number) => setVehCard({ id, name, ts });
   const onJump = (p: string) => setPage(p as PageKey);   // KPI/график → переход на страницу
+
+  // Данные для виджетов гибкого «Рабочего стола» (та же скоупленная модель Atlas).
+  const widgetData: WidgetData = useMemo(() => ({
+    rows, agg, eco: ecoEff, sensor: sensorS, maint: maintS, recs: recsS,
+    violDet, violDetLoading, fuelDet, fuelDetLoading, fuelPrice,
+    trend, trendLoading, onVehicle, onSelectDzo: toggle,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [rows, agg, ecoEff, sensorS, maintS, recsS, violDet, violDetLoading, fuelDet, fuelDetLoading, fuelPrice, trend, trendLoading]);
   // Окно карточки = сутки эпизода (локальный день ts); иначе период отчёта.
   const vehPeriod = (() => {
     if (!vehCard?.ts) return undefined;
@@ -317,6 +327,7 @@ export default function Page() {
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
               {page === "quality" && <Quality rows={rows} sensor={sensorS} onSelectDzo={toggle} onVehicle={onVehicle} />}
               {page === "maint" && <Maint rows={rows} maint={maintS} onSelectDzo={toggle} onVehicle={onVehicle} />}
+              {page === "desktop" && <Desktop data={widgetData} />}
             </>
           )}
         </main>
