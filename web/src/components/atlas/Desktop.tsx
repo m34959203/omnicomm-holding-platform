@@ -201,29 +201,54 @@ function Empty({ onPick }: { onPick: () => void }) {
   );
 }
 
+const WCOLOR: Record<string, string> = {
+  kpiTile: C.blue, economics: C.green, dzoBars: C.teal, parkDonut: C.amber,
+  sensorHealth: "#2e9e5b", maintenance: C.amber, recommendations: C.red,
+  matrix: C.greySoft, violations: C.red, fuel: C.blue, speedTrend: C.amber,
+};
+
+// Мини-превью раскладки шаблона (как в галерее дашбордов Omnicomm Online).
+function TplPreview({ widgets }: { widgets: { type: string; w: number; h: number }[] }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gridAutoRows: "12px", gridAutoFlow: "dense", gap: 3, background: "#f3f6fa", borderRadius: 8, padding: 8, height: 104, overflow: "hidden", border: `1px solid ${C.line}` }}>
+      {widgets.map((w, i) => (
+        <div key={i} title={w.type} style={{ gridColumn: `span ${Math.max(1, Math.min(12, w.w))}`, gridRow: `span ${Math.max(1, Math.min(5, w.h))}`, background: WCOLOR[w.type] || C.faint2, borderRadius: 3, opacity: 0.88 }} />
+      ))}
+    </div>
+  );
+}
+
 function Gallery({ tpls, onApply, onBlank, onClose, hasLayout }: {
   tpls: ServerTemplate[]; onApply: (t: ServerTemplate) => void; onBlank: () => void; onClose: () => void; hasLayout: boolean;
 }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(20,30,50,.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 12, padding: 20, width: "min(900px, 96vw)", maxHeight: "88vh", overflow: "auto", fontFamily: FONT }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 12, padding: 20, width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", fontFamily: FONT }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Шаблоны рабочего стола</div>
           <button onClick={onClose} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 13, cursor: "pointer", fontWeight: 600 }}>закрыть ✕</button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px,1fr))", gap: 12 }}>
-          <div onClick={onBlank} style={{ border: `1.5px dashed ${C.railLine}`, borderRadius: 10, padding: 16, cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", color: C.muted, minHeight: 120 }}>
-            <div style={{ fontSize: 26, color: C.blue }}>+</div><div style={{ fontSize: 13, fontWeight: 600 }}>Пустой стол</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px,1fr))", gap: 14 }}>
+          <div onClick={onBlank} style={{ border: `1.5px dashed ${C.railLine}`, borderRadius: 10, cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", color: C.muted, minHeight: 200, background: "#fff" }}>
+            <div style={{ fontSize: 30, color: C.blue, lineHeight: 1 }}>+</div><div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>Пустой стол</div>
           </div>
-          {tpls.map((t) => (
-            <div key={t.id} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-              {t.role && <span style={{ alignSelf: "flex-start", fontSize: 10, fontWeight: 700, color: C.blue, background: "#eef4fd", borderRadius: 10, padding: "2px 8px" }}>{t.role}</span>}
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{t.name}</div>
-              <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.45, flex: 1 }}>{t.description}</div>
-              <div style={{ fontSize: 10.5, color: C.faint2 }}>{((t.layout?.widgets as unknown[]) || []).length} виджетов{t.is_system ? " · системный" : ""}</div>
-              <button onClick={() => onApply(t)} style={{ ...btn(true), marginTop: 2 }}>{hasLayout ? "Создать стол" : "Использовать"}</button>
-            </div>
-          ))}
+          {tpls.map((t) => {
+            const ws = ((t.layout?.widgets as { type: string; w: number; h: number }[]) || []);
+            return (
+              <div key={t.id} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(20,30,50,.05)" }}>
+                <div style={{ padding: 10 }}><TplPreview widgets={ws} /></div>
+                <div style={{ padding: "4px 14px 14px", display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, flex: 1 }}>{t.name}</div>
+                    {t.role && <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, background: "#eef4fd", borderRadius: 10, padding: "2px 8px", whiteSpace: "nowrap" }}>{t.role}</span>}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.45, flex: 1 }}>{t.description}</div>
+                  <div style={{ fontSize: 10.5, color: C.faint2 }}>{ws.length} виджетов{t.is_system ? " · системный" : ""}</div>
+                  <button onClick={() => onApply(t)} style={{ ...btn(true), marginTop: 2 }}>{hasLayout ? "Создать стол" : "Использовать"}</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
