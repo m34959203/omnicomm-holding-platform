@@ -35,6 +35,7 @@ def _parse_day(iso: Optional[str], fallback_ts: int) -> int:
 def build_violations_detail(
     *, from_iso: Optional[str] = None, to_iso: Optional[str] = None,
     min_duration_s: int = 0, min_excess: float = 0.0, max_excess: float = 999.0,
+    allowed: Optional[set] = None,   # None → все ТС; set → только эти terminal_id (скоуп ДЗО)
     raw_path: str = raw_store.DEFAULT_PATH,
 ) -> dict:
     cov = raw_store.coverage(raw_path)
@@ -50,6 +51,9 @@ def build_violations_detail(
 
     for v in visits:
         if not isinstance(v, dict):
+            continue
+        tid0 = str(v.get("vehicleId") or v.get("id") or "")
+        if allowed is not None and tid0 not in allowed:
             continue
         name = v.get("geozoneName") or ""
         mv = v.get("mv") or {}

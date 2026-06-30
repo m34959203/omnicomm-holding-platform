@@ -64,12 +64,15 @@ export interface Agg {
   online: number; sensorTotal: number; sensorPct: number; overdue: number;
 }
 
-// Узлы ДЗО = дети головного ДЗО (Казатомпром); фолбэк — дети холдинга.
+// Узлы «ДЗО» для слайсера/баров = непосредственные подразделения текущего корня.
+// Холдинг КАП имеет единственного посредника (Казатомпром) — спускаемся сквозь него
+// к 24 ДЗО. Скоуп-корень (ДЗО/подорг) → его прямые дети; лист без детей → сам узел.
 export function dzoNodes(orgs: OrgNode[]): OrgNode[] {
   const root = orgs[0];
   if (!root) return [];
-  const head = root.children?.[0];
-  const list = head?.children?.length ? head.children : (root.children ?? []);
+  let node = root;
+  while (node.children?.length === 1) node = node.children[0];   // пропуск посредника
+  const list = node.children?.length ? node.children : [root];
   return [...list].sort((a, b) => b.vehicle_count - a.vehicle_count);
 }
 

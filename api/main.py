@@ -21,14 +21,14 @@ import re
 import time
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from omnicomm_report import config
 
-from . import cache, excel, jobs, sync, vehicle
+from . import auth_session, cache, excel, jobs, scoping, sync, vehicle
 
 # Загрузить .env в окружение (cron его не сорсит) — иначе Settings.from_env()
 # не увидит LOGIN/PASSWORD/SERVICE для live-синка.
@@ -42,7 +42,7 @@ app.add_middleware(
     # через ENV CORS_ORIGIN (точный origin фронта).
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_origins=[o for o in [os.getenv("CORS_ORIGIN")] if o],
-    allow_methods=["*"], allow_headers=["*"],
+    allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
 )
 
 # Период синка по умолчанию. 2 суток: копия КАП (online.omnicomm.ru) медленно
@@ -206,82 +206,138 @@ async def sync_stream(job_id: str) -> StreamingResponse:
     return StreamingResponse(events(), media_type="text/event-stream")
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def _org_name(org_id: Optional[str]) -> Optional[str]:
+    if not org_id:
+        return None
+    snap = cache.latest_snapshot()
+    node = scoping.find_node((snap or {}).get("orgs") or [], org_id) if snap else None
+    return node.get("name") if node else None
+
+
+@app.post("/api/login")
+def login(req: LoginRequest, response: Response) -> dict:
+    rec = auth_session.login(response, req.username, req.password)
+    if not rec:
+        raise HTTPException(401, "Неверный логин или пароль")
+    return {"username": rec["username"], "role": rec.get("role"),
+            "org_id": rec.get("org_id"), "org_name": _org_name(rec.get("org_id"))}
+
+
+@app.post("/api/logout")
+def logout(response: Response) -> dict:
+    auth_session.logout(response)
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def me(request: Request) -> dict:
+    v = auth_session.viewer(request)
+    if not v:
+        raise HTTPException(401, "Не авторизован")
+    return {"username": v["username"], "role": v.get("role"),
+            "org_id": v.get("org_id"), "org_name": _org_name(v.get("org_id"))}
+
+
 @app.get("/api/snapshots")
-def snapshots() -> list[dict]:
+def snapshots(request: Request) -> list[dict]:
+    _require_viewer(request)
     return cache.list_snapshots()
 
 
-def _snapshot(period_key: Optional[str]) -> dict:
+def _require_viewer(request: Request) -> dict:
+    v = auth_session.viewer(request)
+    if not v:
+        raise HTTPException(401, "Требуется вход")
+    return v
+
+
+def _snapshot(period_key: Optional[str], request: Request) -> dict:
+    v = _require_viewer(request)
     snap = (cache.load_snapshot(period_key) if period_key
             else cache.latest_snapshot())
     if snap is None:
         raise HTTPException(404, "Нет снапшота — запустите синк (POST /api/sync)")
-    return snap
+    return scoping.scope_snapshot(snap, v["org_id"]) if v.get("org_id") else snap
 
 
 @app.get("/api/dashboard")
-def dashboard(period_key: Optional[str] = Query(None)) -> dict:
-    snap = _snapshot(period_key)
+def dashboard(request: Request, period_key: Optional[str] = Query(None)) -> dict:
+    snap = _snapshot(period_key, request)
     return {"period": snap.get("period"), "fleet": snap.get("fleet"),
             "orgs": snap.get("orgs"), "economics": snap.get("economics"),
             "meta": snap.get("_meta")}
 
 
 @app.get("/api/geozones")
-def geozones(period_key: Optional[str] = Query(None)) -> dict:
-    snap = _snapshot(period_key)
+def geozones(request: Request, period_key: Optional[str] = Query(None)) -> dict:
+    snap = _snapshot(period_key, request)
     return {"geozones": snap.get("geozones", []), "meta": snap.get("_meta")}
 
 
 @app.get("/api/recommendations")
-def recommendations(period_key: Optional[str] = Query(None)) -> dict:
-    snap = _snapshot(period_key)
+def recommendations(request: Request, period_key: Optional[str] = Query(None)) -> dict:
+    snap = _snapshot(period_key, request)
     return {"recommendations": snap.get("recommendations", []),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
 @app.get("/api/sensor-health")
-def sensor_health(period_key: Optional[str] = Query(None)) -> dict:
+def sensor_health(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Качество данных (R7): светофор терминалов + пропавшие KPI-блоки."""
-    snap = _snapshot(period_key)
+    snap = _snapshot(period_key, request)
     return {"sensor_health": snap.get("sensor_health"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
 @app.get("/api/geozone-visits")
-def geozone_visits(period_key: Optional[str] = Query(None)) -> dict:
+def geozone_visits(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Форма «Посещение геозон»: таблица визитов + сводка по геозонам (kb-14)."""
-    snap = _snapshot(period_key)
+    snap = _snapshot(period_key, request)
     return {"geozone_visits": snap.get("geozone_visits"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
 @app.get("/api/fuel")
-def fuel(period_key: Optional[str] = Query(None)) -> dict:
+def fuel(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Форма «Топливо»: заправки/сливы/выдача + объём бака по ТС (kb-14)."""
-    snap = _snapshot(period_key)
+    snap = _snapshot(period_key, request)
     return {"fuel": snap.get("fuel"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
 @app.get("/api/violations")
-def violations(period_key: Optional[str] = Query(None)) -> dict:
+def violations(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Форма «Нарушения»: единая таблица нарушений по парку (kb-14)."""
-    snap = _snapshot(period_key)
+    snap = _snapshot(period_key, request)
     return {"violations": snap.get("violations"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
 @app.get("/api/fleet-table")
-def fleet_table(period_key: Optional[str] = Query(None)) -> dict:
+def fleet_table(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Форма «Сводный / Работа группы»: посуточный итог по ТС (kb-14)."""
-    snap = _snapshot(period_key)
+    snap = _snapshot(period_key, request)
     return {"fleet_table": snap.get("fleet_table"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
+def _scope_allowed(request: Request) -> Optional[set]:
+    """Множество разрешённых terminal_id для on-demand форм. None → admin (все)."""
+    v = _require_viewer(request)
+    if not v.get("org_id"):
+        return None
+    snap = cache.latest_snapshot() or {}
+    return scoping.allowed_terminals(snap, v["org_id"])
+
+
 @app.get("/api/speed-trend")
 def speed_trend(
+    request: Request,
     from_: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = Query(None),
     minDurationSec: int = Query(0),
@@ -289,17 +345,17 @@ def speed_trend(
     maxExcess: float = Query(999.0),
 ) -> dict:
     """Повторяемость превышений: матрица ТС × месяц за произвольный диапазон
-    (архив визитов), с порогами длительности и величины превышения. Скоуп ДЗО
-    и метрика считаются на фронте по vehicle_org (как у остальных вкладок)."""
+    (архив визитов), с порогами длительности и величины превышения."""
     from . import speed_trend as st
     return st.build_speed_trend(
-        from_iso=from_, to_iso=to,
+        from_iso=from_, to_iso=to, allowed=_scope_allowed(request),
         min_duration_s=minDurationSec, min_excess=minExcess, max_excess=maxExcess,
     )
 
 
 @app.get("/api/violations-detail")
 def violations_detail_ep(
+    request: Request,
     from_: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = Query(None),
     minDurationSec: int = Query(0),
@@ -307,30 +363,30 @@ def violations_detail_ep(
     maxExcess: float = Query(999.0),
 ) -> dict:
     """Детальная таблица нарушений (per-episode, стр.2 Power BI): дата/ТС/локация/
-    ср.скорость/длительность/лимит/превышение/штраф из архива визитов. Скоуп — на фронте."""
+    ср.скорость/длительность/лимит/превышение/штраф из архива визитов."""
     from . import violations_detail as vd
     return vd.build_violations_detail(
-        from_iso=from_, to_iso=to,
+        from_iso=from_, to_iso=to, allowed=_scope_allowed(request),
         min_duration_s=minDurationSec, min_excess=minExcess, max_excess=maxExcess,
     )
 
 
 @app.get("/api/fuel-detail")
 def fuel_detail_ep(
+    request: Request,
     from_: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = Query(None),
 ) -> dict:
     """Топливо «Работа группы по ТС»: пробег/моточасы/расход/факт л-100/норма
-    (Omnicomm, справочно)/заправки/сливы/выдача за период из архива. Скоуп — на фронте.
-    Вердикт перерасхода НЕ выводится (нормы не согласованы)."""
+    (Omnicomm, справочно)/заправки/сливы/выдача за период из архива."""
     from . import fuel_norms as fnm
-    return fnm.build_fuel_norms(from_iso=from_, to_iso=to)
+    return fnm.build_fuel_norms(from_iso=from_, to_iso=to, allowed=_scope_allowed(request))
 
 
 @app.get("/api/maintenance")
-def maintenance(period_key: Optional[str] = Query(None)) -> dict:
+def maintenance(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Контроль ТО (R6): наработка и статусы по парку."""
-    snap = _snapshot(period_key)
+    snap = _snapshot(period_key, request)
     return {"maintenance": snap.get("maintenance"),
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
@@ -342,11 +398,19 @@ def _veh_window(start_ts, end_ts):
     return (start_ts or (end - 24 * 3600)), end
 
 
+def _vehicle_guard(request: Request, terminal_id: str) -> None:
+    """Доступ к ТС: аноним → 401; ДЗО-зритель → только ТС своего поддерева (403)."""
+    allowed = _scope_allowed(request)        # None → admin; set → скоуп
+    if allowed is not None and str(terminal_id) not in allowed:
+        raise HTTPException(403, "ТС вне вашего доступа")
+
+
 @app.get("/api/vehicle/{terminal_id}")
-def vehicle_card(terminal_id: str,
+def vehicle_card(request: Request, terminal_id: str,
                  start_ts: Optional[int] = Query(None),
                  end_ts: Optional[int] = Query(None)) -> dict:
     """Карточка ТС (live): трек + ряд скорости. Быстро (~1-2с). По умолчанию — 1 сутки."""
+    _vehicle_guard(request, terminal_id)
     start, end = _veh_window(start_ts, end_ts)
     try:
         return vehicle.track_detail(terminal_id, start, end)
@@ -355,10 +419,11 @@ def vehicle_card(terminal_id: str,
 
 
 @app.get("/api/vehicle/{terminal_id}/telemetry")
-def vehicle_telemetry(terminal_id: str,
+def vehicle_telemetry(request: Request, terminal_id: str,
                       start_ts: Optional[int] = Query(None),
                       end_ts: Optional[int] = Query(None)) -> dict:
     """Телеметрия ТС из сводного отчёта (медленно ~16с) — грузится лениво."""
+    _vehicle_guard(request, terminal_id)
     start, end = _veh_window(start_ts, end_ts)
     try:
         return vehicle.telemetry(terminal_id, start, end)
@@ -367,9 +432,9 @@ def vehicle_telemetry(terminal_id: str,
 
 
 @app.get("/api/dashboard.xlsx")
-def dashboard_xlsx(period_key: Optional[str] = Query(None)) -> Response:
-    """Excel-выгрузка дашборда одной кнопкой (R3.3): все листы из снапшота."""
-    snap = _snapshot(period_key)
+def dashboard_xlsx(request: Request, period_key: Optional[str] = Query(None)) -> Response:
+    """Excel-выгрузка дашборда одной кнопкой (R3.3): все листы из снапшота (скоуп ДЗО)."""
+    snap = _snapshot(period_key, request)
     data = excel.build_workbook(snap)
     # Имя файла — только ASCII (HTTP-заголовок latin-1); берём period_key (даты).
     pkey = period_key or (snap.get("_meta") or {}).get("period_key") or "report"

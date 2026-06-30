@@ -91,6 +91,7 @@ def _parse_day(iso: Optional[str], fallback_ts: int) -> int:
 
 def build_fuel_norms(
     *, from_iso: Optional[str] = None, to_iso: Optional[str] = None,
+    allowed: Optional[set] = None,   # None → все ТС; set → только эти terminal_id (скоуп ДЗО)
     raw_path: str = raw_store.DEFAULT_PATH,
 ) -> dict:
     cov = raw_store.coverage(raw_path)
@@ -133,6 +134,8 @@ def build_fuel_norms(
     over_l_total = 0.0
     econ_l_total = 0.0
     for tid, a in agg.items():
+        if allowed is not None and tid not in allowed:
+            continue
         name = a["name"] or tid
         transport = classify.is_transport(name)
         mil = a["mil"]

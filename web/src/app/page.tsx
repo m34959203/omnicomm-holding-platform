@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation,
-  FuelDetail, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm,
+  FuelDetail, Me, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm,
   excelUrl, getDashboard, getFuel, getFuelDetail, getGeozones, getJob, getMaintenance,
-  getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail,
-  getViolationsForm, startSync,
+  getMe, getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail,
+  getViolationsForm, logout, startSync,
 } from "@/lib/api";
 import {
   Agg, C, DzoRow, FONT, aggregate, buildDzoRows, dzoNodes,
@@ -22,6 +22,7 @@ import Trend, { TrendMetric } from "@/components/atlas/Trend";
 import Fuel from "@/components/atlas/Fuel";
 import Quality from "@/components/atlas/Quality";
 import Maint from "@/components/atlas/Maint";
+import Login from "@/components/atlas/Login";
 import VehicleCard from "@/components/VehicleCard";
 
 type PageKey = "overview" | "money" | "fuel" | "speed" | "violations" | "trend" | "quality" | "maint";
@@ -59,6 +60,8 @@ export default function Page() {
   const [periodKey, setPeriodKey] = useState<string>("");
   const [state, setState] = useState<"loading" | "ready" | "empty" | "down">("loading");
 
+  const [me, setMe] = useState<Me | null>(null);
+  const [auth, setAuth] = useState<"checking" | "anon" | "in">("checking");
   const [page, setPage] = useState<PageKey>("overview");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [vehCard, setVehCard] = useState<{ id: string; name?: string; ts?: number } | null>(null);
@@ -94,7 +97,16 @@ export default function Page() {
     } catch { setState("down"); }
   }, [periodKey]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // Сначала проверяем сессию; данные грузим только после входа.
+  const enter = useCallback(() => {
+    getMe().then((m) => { setMe(m); setAuth("in"); load(); }).catch(() => setAuth("anon"));
+  }, [load]);
+  useEffect(() => { enter(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const onLogout = async () => {
+    try { await logout(); } catch { /* no-op */ }
+    setMe(null); setSelected(new Set()); setPage("overview"); setAuth("anon");
+  };
 
   // Тренд повторяемости — пересчёт при смене порогов (дебаунс), скоуп/метрика на клиенте.
   useEffect(() => {
@@ -269,12 +281,20 @@ export default function Page() {
     ? new Date(dash.meta.synced_at * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "—") + " · кэш";
 
+  if (auth === "checking") {
+    return <div style={{ height: "100vh", background: C.bg }} />;
+  }
+  if (auth === "anon") {
+    return <Login onDone={enter} />;
+  }
+
   return (
     <div style={{ height: "100vh", minHeight: 680, display: "flex", flexDirection: "column", background: C.bg, color: C.ink, fontFamily: FONT, overflow: "hidden" }}>
       <Ribbon
         title="Автопарк КАП — аналитика" subtitle="Omnicomm Holding · отчёт"
         snapshot={snapLabel} periods={periods} excelHref={excelUrl(periodKey || undefined)}
         onSync={onSync} syncing={syncing}
+        user={me?.username} scope={me?.org_name} onLogout={onLogout}
       />
 
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
