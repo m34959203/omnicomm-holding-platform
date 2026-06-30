@@ -213,6 +213,15 @@ export default function Page() {
   const dzoNameById = useMemo(() => new Map(dzoNodes(orgs).map((n) => [n.org_id, n.name])), [orgs]);
   const dzoOf = (vid: string) => dzoNameById.get(vehTopDzo[vid]) ?? "—";
 
+  // Перерасход топлива к норме в ₸ (предв.) — из «Топлива», скоуп + цена ГСМ; для «Денег».
+  const fuelPrice = Number(orgs[0]?.kpi.fuel_price_kzt ?? 0);
+  const overrunKzt = useMemo(() => {
+    const l = (fuelDet?.rows ?? [])
+      .filter((r) => inScope(r.vehicleId) && r.over_l && r.over_l > 0)
+      .reduce((a, r) => a + (r.over_l ?? 0), 0);
+    return l * fuelPrice;
+  }, [fuelDet, inScope, fuelPrice]);
+
   // Активные за 7 дней (P1.5) — по последнему сигналу терминала в скоупе.
   const activeCount = useMemo(
     () => (sensorS?.terminals ?? []).filter((t) => t.age_seconds != null && t.age_seconds < ACTIVE_WINDOW_S).length,
@@ -282,8 +291,8 @@ export default function Page() {
           {state === "ready" && (
             <>
               {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} />}
-              {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} />}
-              {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} fuelPrice={Number(orgs[0]?.kpi.fuel_price_kzt ?? 0)} onVehicle={onVehicle} />}
+              {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} overrunKzt={overrunKzt} overrunProvisional={!fuelDet?.norms_approved} />}
+              {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} fuelPrice={fuelPrice} onVehicle={onVehicle} />}
               {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onVehicle={onVehicle} />}
               {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
