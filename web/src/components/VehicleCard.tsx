@@ -10,12 +10,20 @@ import { LineChart } from "./charts";
 // телеметрия. Аналог «карточки ТС» Omnicomm. Недоступные по REST поля
 // (напряжение бортсети, темп. топлива, водитель) показываем честным прочерком.
 export default function VehicleCard({
-  terminalId, name, onClose,
+  terminalId, name, onClose, period,
 }: {
   terminalId: string;
   name?: string;
   onClose: () => void;
+  period?: { start_ts: number; end_ts: number };  // окно карточки; нет → период отчёта
 }) {
+  // Подпись окна: одни сутки эпизода → дата; иначе диапазон; нет period → «за период отчёта».
+  const windowLabel = (() => {
+    if (!period) return "за период отчёта";
+    const f = (ts: number) => new Date(ts * 1000).toLocaleDateString("ru-RU");
+    return period.end_ts - period.start_ts <= 26 * 3600 ? f(period.start_ts)
+      : `${f(period.start_ts)} — ${f(period.end_ts)}`;
+  })();
   const [data, setData] = useState<VehicleDetail | null>(null);
   const [telem, setTelem] = useState<Record<string, number | null> | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -24,8 +32,9 @@ export default function VehicleCard({
 
   useEffect(() => {
     let cancelled = false;
-    // трек — быстро (~1-2с): карта + график появляются сразу
-    getVehicle(terminalId)
+    // трек — быстро (~1-2с): карта + график появляются сразу. Окно = period (сутки
+    // эпизода) или дефолт бэкенда (период отчёта).
+    getVehicle(terminalId, period)
       .then((d) => { if (!cancelled) setData(d); })
       .catch((e) => { if (!cancelled) setErr(String(e?.message ?? e)); });
     // телеметрия — медленно (~16с, сводный отчёт): догружаем лениво
@@ -33,7 +42,7 @@ export default function VehicleCard({
       .then((r) => { if (!cancelled) setTelem(r.telemetry ?? {}); })
       .catch(() => { if (!cancelled) setTelem({}); });
     return () => { cancelled = true; };
-  }, [terminalId]);
+  }, [terminalId, period?.start_ts, period?.end_ts]);
 
   // карта с треком — после загрузки данных
   useEffect(() => {
@@ -89,7 +98,7 @@ export default function VehicleCard({
         {/* шапка */}
         <div className="flex items-baseline justify-between gap-4 border-b border-line px-6 py-4">
           <div>
-            <span className="eyebrow">Карточка ТС</span>
+            <span className="eyebrow">Карточка ТС · {windowLabel}</span>
             <h3 className="display text-2xl text-ink">{data?.name || name || terminalId}</h3>
           </div>
           <button onClick={onClose}

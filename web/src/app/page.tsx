@@ -61,7 +61,7 @@ export default function Page() {
 
   const [page, setPage] = useState<PageKey>("overview");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [vehCard, setVehCard] = useState<{ id: string; name?: string } | null>(null);
+  const [vehCard, setVehCard] = useState<{ id: string; name?: string; ts?: number } | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   // Пороги превышения (P1.2): влияют на «Повторяемость» (запрос) и «Скоростной режим» (клиент).
@@ -247,7 +247,14 @@ export default function Page() {
   const summary = (selected.size ? `${selected.size} ДЗО` : "Все ДЗО")
     + ` · ${agg.veh} ТС · ${dash?.period?.label ?? "—"}`;
 
-  const onVehicle = (id: string, name?: string) => setVehCard({ id, name });
+  const onVehicle = (id: string, name?: string, ts?: number) => setVehCard({ id, name, ts });
+  // Окно карточки = сутки эпизода (локальный день ts); иначе период отчёта.
+  const vehPeriod = (() => {
+    if (!vehCard?.ts) return undefined;
+    const d = new Date(vehCard.ts * 1000); d.setHours(0, 0, 0, 0);
+    const start = Math.floor(d.getTime() / 1000);
+    return { start_ts: start, end_ts: start + 86400 };
+  })();
   const snapLabel = (dash?.meta?.synced_at
     ? new Date(dash.meta.synced_at * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "—") + " · кэш";
@@ -299,7 +306,7 @@ export default function Page() {
         ))}
       </div>
 
-      {vehCard && <VehicleCard terminalId={vehCard.id} name={vehCard.name} onClose={() => setVehCard(null)} />}
+      {vehCard && <VehicleCard terminalId={vehCard.id} name={vehCard.name} period={vehPeriod} onClose={() => setVehCard(null)} />}
     </div>
   );
 }
