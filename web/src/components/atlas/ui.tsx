@@ -31,11 +31,12 @@ export function Panel({ title, right, span, children, pad = true }: {
 }
 
 // KPI-карта с большим числом и (опц.) спарклайном.
-export function Kpi({ label, value, color = C.ink, sub, sparkPts, span = 2 }: {
-  label: string; value: string; color?: string; sub?: string; sparkPts?: string; span?: number;
+export function Kpi({ label, value, color = C.ink, sub, sparkPts, span = 2, onClick }: {
+  label: string; value: string; color?: string; sub?: string; sparkPts?: string; span?: number; onClick?: () => void;
 }) {
   return (
-    <div style={{ ...panelStyle, gridColumn: `span ${span}`, padding: "11px 13px", minWidth: 0 }}>
+    <div onClick={onClick} title={onClick ? "перейти к разделу" : undefined}
+      style={{ ...panelStyle, gridColumn: `span ${span}`, padding: "11px 13px", minWidth: 0, cursor: onClick ? "pointer" : "default" }}>
       <div style={{
         fontSize: 10.5, color: C.muted2, fontWeight: 600, textTransform: "uppercase",
         letterSpacing: ".03em", marginBottom: 7, whiteSpace: "nowrap",
@@ -123,6 +124,19 @@ export function Gauge({ pct, size = 104, label, sub }: { pct: number; size?: num
         </div>
       </div>
       {sub && <div style={{ fontSize: 11, color: C.muted, textAlign: "center" }}>{sub}</div>}
+    </div>
+  );
+}
+
+// Легенда: подписи цветов под графиком (что какой цвет значит).
+export function Legend({ items }: { items: { color: string; label: string }[] }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 14px", marginTop: 10, fontSize: 10.5, color: C.muted }}>
+      {items.map((it, i) => (
+        <span key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: it.color, flexShrink: 0 }} />{it.label}
+        </span>
+      ))}
     </div>
   );
 }

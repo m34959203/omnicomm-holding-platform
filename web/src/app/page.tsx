@@ -257,6 +257,7 @@ export default function Page() {
     + ` · ${agg.veh} ТС · ${dash?.period?.label ?? "—"}`;
 
   const onVehicle = (id: string, name?: string, ts?: number) => setVehCard({ id, name, ts });
+  const onJump = (p: string) => setPage(p as PageKey);   // KPI/график → переход на страницу
   // Окно карточки = сутки эпизода (локальный день ts); иначе период отчёта.
   const vehPeriod = (() => {
     if (!vehCard?.ts) return undefined;
@@ -290,14 +291,14 @@ export default function Page() {
           {state === "empty" && <Notice title="Снимок ещё не собран" body="Нажмите «↻ обновить» вверху — синк соберёт снапшот в фоне." />}
           {state === "ready" && (
             <>
-              {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} />}
-              {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} overrunKzt={overrunKzt} overrunProvisional={!fuelDet?.norms_approved} />}
+              {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} onSelectDzo={toggle} onJump={onJump} />}
+              {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} overrunKzt={overrunKzt} overrunProvisional={!fuelDet?.norms_approved} onSelectDzo={toggle} onJump={onJump} />}
               {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} fuelPrice={fuelPrice} onVehicle={onVehicle} />}
-              {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onVehicle={onVehicle} />}
+              {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onSelectDzo={toggle} onJump={onJump} onVehicle={onVehicle} />}
               {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
-              {page === "quality" && <Quality rows={rows} sensor={sensorS} onVehicle={onVehicle} />}
-              {page === "maint" && <Maint rows={rows} maint={maintS} onVehicle={onVehicle} />}
+              {page === "quality" && <Quality rows={rows} sensor={sensorS} onSelectDzo={toggle} onVehicle={onVehicle} />}
+              {page === "maint" && <Maint rows={rows} maint={maintS} onSelectDzo={toggle} onVehicle={onVehicle} />}
             </>
           )}
         </main>

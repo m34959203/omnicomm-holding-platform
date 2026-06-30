@@ -9,8 +9,9 @@ const BADGE: Record<string, { bg: string; color: string; label: string }> = {
   "ok": { bg: "#e4f3ea", color: C.green, label: "в норме" },
 };
 
-export default function Maint({ rows, maint, onVehicle }: {
-  rows: DzoRow[]; maint: Maintenance | null; onVehicle: (id: string, name?: string) => void;
+export default function Maint({ rows, maint, onSelectDzo, onVehicle }: {
+  rows: DzoRow[]; maint: Maintenance | null;
+  onSelectDzo: (orgId: string) => void; onVehicle: (id: string, name?: string) => void;
 }) {
   const counts = maint?.counts ?? {};
   const kpis = [
@@ -39,10 +40,10 @@ export default function Maint({ rows, maint, onVehicle }: {
         </div>
       ))}
 
-      <Panel span={5} title="Просрочено ТО по ДЗО">
+      <Panel span={5} title="Просрочено ТО по ДЗО" right="клик — фильтр">
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {byOverdue.length ? byOverdue.map((r) => (
-            <BarRow key={r.org_id} name={r.name} w={r.overdue / maxOver * 100} value={String(r.overdue)} color={C.amber} h={14} />
+            <BarRow key={r.org_id} name={r.name} w={r.overdue / maxOver * 100} value={String(r.overdue)} color={C.amber} h={14} onClick={() => onSelectDzo(r.org_id)} />
           )) : <div style={{ fontSize: 11.5, color: C.faint }}>Просроченных ТО нет</div>}
         </div>
       </Panel>
