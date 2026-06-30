@@ -41,17 +41,26 @@ export function spark(arr: number[]): string {
 }
 
 // ---- Селекторы организаций (ДЗО) ----
+// Минимальный мобильный пробег ДЗО, при котором ₸/км и л/100 показательны.
+// Ниже — техника стоит/работает на моточасах (АЗС/генераторы/спецтехника):
+// «fuel / ≈0 км» даёт абсурдный л/100 → показываем «—» (вентиль доверия).
+export const MIN_RATE_KM = 300;
+
 export interface DzoRow {
   org_id: string; name: string; veh: number;
   potential: number; fuelCost: number; km: number; fuelL: number;
-  cpkm: number; l100: number;
+  // ₸/км и л/100 — по МОБИЛЬНОЙ технике (движущейся), деньги/топливо — по всем ТС.
+  mobileKm: number; mobileFuelL: number; price: number;
+  cpkm: number; l100: number; rateOk: boolean;
   episodes: number; pubEp: number; techEp: number;
   online: number; sensorTotal: number; sensorPct: number;
   overdue: number;
 }
 export interface Agg {
   veh: number; potential: number; fuelCost: number; km: number; fuelL: number;
-  cpkm: number; l100: number; episodes: number; pubEp: number; techEp: number;
+  mobileKm: number; mobileFuelL: number;
+  cpkm: number; l100: number; rateOk: boolean;
+  episodes: number; pubEp: number; techEp: number;
   online: number; sensorTotal: number; sensorPct: number; overdue: number;
 }
 
@@ -82,11 +91,18 @@ export function buildDzoRows(
     let overdue = 0;
     for (const it of maint?.items ?? []) if (ids.has(vehicleOrg[it.terminal_id]) && it.status === "просрочено") overdue++;
     const k = n.kpi;
+    const mobileKm = +k.mobile_mileage_km || 0;
+    const mobileFuelL = +k.mobile_fuel_l || 0;
+    const price = +k.fuel_price_kzt || 0;
+    const rateOk = mobileKm >= MIN_RATE_KM && (+k.mobile_count || 0) > 0;
     return {
       org_id: n.org_id, name: n.name, veh: n.vehicle_count,
       potential: +k.potential_savings || 0, fuelCost: +k.total_fuel_cost || 0,
       km: +k.total_mileage_km || 0, fuelL: +k.total_fuel_l || 0,
-      cpkm: +k.fuel_cost_per_km || 0, l100: +k.weighted_fuel_per_100km || 0,
+      mobileKm, mobileFuelL, price,
+      cpkm: rateOk ? mobileFuelL * price / mobileKm : 0,
+      l100: rateOk ? mobileFuelL / mobileKm * 100 : 0,
+      rateOk,
       episodes, pubEp, techEp, online, sensorTotal,
       sensorPct: sensorTotal ? online / sensorTotal : 0, overdue,
     };
@@ -96,10 +112,15 @@ export function buildDzoRows(
 export function aggregate(rows: DzoRow[]): Agg {
   const s = (f: (r: DzoRow) => number) => rows.reduce((a, r) => a + f(r), 0);
   const km = s((r) => r.km), fuelL = s((r) => r.fuelL), fuelCost = s((r) => r.fuelCost);
+  const mobileKm = s((r) => r.mobileKm), mobileFuelL = s((r) => r.mobileFuelL);
+  const price = rows.find((r) => r.price)?.price ?? 0;
   const online = s((r) => r.online), sensorTotal = s((r) => r.sensorTotal);
+  const rateOk = mobileKm >= MIN_RATE_KM;
   return {
     veh: s((r) => r.veh), potential: s((r) => r.potential), fuelCost, km, fuelL,
-    cpkm: km ? fuelCost / km : 0, l100: km ? fuelL / km * 100 : 0,
+    mobileKm, mobileFuelL,
+    cpkm: rateOk ? mobileFuelL * price / mobileKm : 0,
+    l100: rateOk ? mobileFuelL / mobileKm * 100 : 0, rateOk,
     episodes: s((r) => r.episodes), pubEp: s((r) => r.pubEp), techEp: s((r) => r.techEp),
     online, sensorTotal, sensorPct: sensorTotal ? online / sensorTotal : 0,
     overdue: s((r) => r.overdue),

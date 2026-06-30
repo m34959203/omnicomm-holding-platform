@@ -11,7 +11,7 @@ export default function Money({ rows, agg, eco }: { rows: DzoRow[]; agg: Agg; ec
     { label: "COI / месяц", value: eco ? mlnTg(eco.coi_monthly_kzt) : "—", color: C.amber, sub: "стоимость простоя" },
     { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber, sub: "≈ оценка" },
     { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink, sub: "за период" },
-    { label: "₸ / км", value: ru(agg.cpkm) + " ₸", color: C.teal, sub: "взвеш." },
+    { label: "₸ / км", value: agg.rateOk ? ru(agg.cpkm) + " ₸" : "—", color: C.teal, sub: "по движущимся ТС" },
   ];
 
   const byPot = [...rows].filter((r) => r.potential > 0).sort((a, b) => b.potential - a.potential).slice(0, 8);
@@ -29,10 +29,10 @@ export default function Money({ rows, agg, eco }: { rows: DzoRow[]; agg: Agg; ec
     ...(restVeh ? [{ label: "Прочие", pct: restVeh / totalVeh * 100, color: C.faint2 }] : []),
   ];
 
-  const cpkm = [...rows].filter((r) => r.cpkm > 0).sort((a, b) => b.cpkm - a.cpkm).slice(0, 8);
+  const cpkm = [...rows].filter((r) => r.rateOk).sort((a, b) => b.cpkm - a.cpkm).slice(0, 8);
   const maxCpkm = Math.max(1, ...cpkm.map((r) => r.cpkm));
 
-  const lkm = [...rows].filter((r) => r.l100 > 0 && r.l100 < 500).sort((a, b) => b.l100 - a.l100).slice(0, 8);
+  const lkm = [...rows].filter((r) => r.rateOk).sort((a, b) => b.l100 - a.l100).slice(0, 8);
   const maxL = Math.max(1, ...lkm.map((r) => r.l100));
 
   return (

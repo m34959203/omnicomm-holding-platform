@@ -13,7 +13,7 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
     { label: "Потенциал экономии", value: mlnTg(agg.potential), color: C.green },
     { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber },
     { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink },
-    { label: "₸ / км", value: ru(agg.cpkm) + " ₸", color: C.teal },
+    { label: "₸ / км", value: agg.rateOk ? ru(agg.cpkm) + " ₸" : "—", color: C.teal },
     { label: "Превышения", value: ru(agg.episodes), color: C.amber },
     { label: "Связь / просрочено ТО", value: Math.round(agg.sensorPct * 100) + "% · " + overdueTotal, color: C.blue },
   ];
@@ -134,8 +134,8 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
                 <Td right color={C.muted}>{ru(r.veh)}</Td>
                 <Td right color={C.green}>{r.potential ? compactM(r.potential) : "—"}</Td>
                 <Td right>{compactM(r.fuelCost)}</Td>
-                <Td right>{ru(r.cpkm)}</Td>
-                <Td right color={r.l100 > 60 ? C.amber : undefined}>{ru(r.l100, 1)}</Td>
+                <Td right color={r.rateOk ? undefined : C.faint2}>{r.rateOk ? ru(r.cpkm) : "—"}</Td>
+                <Td right color={!r.rateOk ? C.faint2 : r.l100 > 60 ? C.amber : undefined}>{r.rateOk ? ru(r.l100, 1) : "—"}</Td>
                 <Td right>{ru(r.episodes)}</Td>
                 <Td right color={r.sensorPct < 0.8 ? C.amber : C.green}><b>{Math.round(r.sensorPct * 100)}%</b></Td>
                 <Td right color={r.overdue > 0 ? C.red : C.muted}>{r.overdue}</Td>
@@ -146,8 +146,8 @@ export default function Overview({ rows, agg, eco, sensorCounts, overdueTotal }:
               <Td right>{ru(agg.veh)}</Td>
               <Td right color={C.green}>{compactM(agg.potential)}</Td>
               <Td right>{compactM(agg.fuelCost)}</Td>
-              <Td right>{ru(agg.cpkm)}</Td>
-              <Td right>{ru(agg.l100, 1)}</Td>
+              <Td right>{agg.rateOk ? ru(agg.cpkm) : "—"}</Td>
+              <Td right>{agg.rateOk ? ru(agg.l100, 1) : "—"}</Td>
               <Td right>{ru(agg.episodes)}</Td>
               <Td right>{Math.round(agg.sensorPct * 100)}%</Td>
               <Td right>{overdueTotal}</Td>
