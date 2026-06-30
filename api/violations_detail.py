@@ -95,12 +95,29 @@ def build_violations_detail(
         })
 
     total = len(rows)
+    # Серверные агрегаты по ПОЛНОМУ списку (до среза) — чтобы KPI/тяжесть/зоны не
+    # занижались усечением rows[:CAP] (BUG-1). Тяжесть — по величине превышения.
+    severity = {"s6": 0, "s20": 0, "s40": 0}
+    zmap: dict = {}
+    for r in rows:
+        e = r["excess_kmh"]
+        if e >= 40: severity["s40"] += 1
+        elif e >= 20: severity["s20"] += 1
+        else: severity["s6"] += 1
+        z = zmap.setdefault(r["geozone"], {"name": r["geozone"], "limit": r["limit_kmh"],
+                                           "max": 0.0, "events": 0})
+        z["events"] += 1
+        z["max"] = max(z["max"], r["max_speed_kmh"])   # АБСОЛЮТНАЯ макс. скорость (BUG-4)
+    zones = sorted(zmap.values(), key=lambda z: z["events"], reverse=True)[:12]
+
     rows.sort(key=lambda r: (r["avg_speed_kmh"] if r["avg_speed_kmh"] is not None else r["max_speed_kmh"]), reverse=True)
     return {
         "rows": rows[:CAP],
         "total": total,
         "returned": min(total, CAP),
         "capped": total > CAP,
+        "severity": severity,
+        "zones": zones,
         "from": dt.datetime.fromtimestamp(start_ts, _UTC).strftime("%Y-%m-%d"),
         "to": dt.datetime.fromtimestamp(end_ts, _UTC).strftime("%Y-%m-%d"),
         "params": {"minDurationSec": min_duration_s, "minExcess": min_excess, "maxExcess": max_excess},

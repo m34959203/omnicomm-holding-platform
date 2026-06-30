@@ -295,8 +295,11 @@ export interface ViolationDetailRow {
   duration_s: number; start_ts: number; public_road: boolean; severity: string;
   koap_article: string | null; fine_kzt: number | null;
 }
+export interface ViolZone { name: string; limit: number | null; max: number; events: number }
 export interface ViolationsDetail {
   rows: ViolationDetailRow[]; total: number; returned: number; capped: boolean;
+  severity: { s6: number; s20: number; s40: number };
+  zones: ViolZone[];
   from: string; to: string; source: string;
   params: { minDurationSec: number; minExcess: number; maxExcess: number };
 }
