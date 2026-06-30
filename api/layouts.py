@@ -189,8 +189,11 @@ def apply_template(tid: str, p: dict = Depends(principal)) -> dict:
     if not x or (not x["is_system"] and not _can_view(p, x["owner"], x["org_id"])):
         raise HTTPException(404, "Шаблон не найден")
     # Новый стол наследует org юзера (НЕ автора шаблона) — данные по его поддереву.
+    layout = migrate_layout(x["layout"])
+    for w in layout.get("widgets") or []:        # уникальные id виджетам (в шаблоне их нет)
+        w["id"] = "w" + st.new_id()[:10]
     lay = st.upsert_layout(lid=st.new_id(), owner=p["user_id"], org_id=p["org_id"],
-                           name=x["name"], layout=migrate_layout(x["layout"]))
+                           name=x["name"], layout=layout)
     return {"layout": layout_view(lay)}
 
 
@@ -290,6 +293,12 @@ SYSTEM_TEMPLATES = [
      "description": "Расход/норма/перерасход по ТС и ₸/км.", "widgets": [
         _w("kpiTile", 3, 1, {"metric": "fuelCost"}), _w("dzoBars", 5, 2, {"metric": "cpkm"}),
         _w("dzoBars", 4, 2, {"metric": "l100"}), _w("fuel", 12, 5)]},
+    {"id": "sys-compare", "name": "Сравнение подрядчиков", "role": "Закупки / контроль",
+     "description": "Матрица ДЗО + бары для сравнения по деньгам, ₸/км и превышениям.", "widgets": [
+        _w("kpiTile", 3, 1, {"metric": "cpkm"}), _w("kpiTile", 3, 1, {"metric": "episodes"}),
+        _w("dzoBars", 6, 2, {"metric": "cpkm"}),
+        _w("dzoBars", 6, 2, {"metric": "potential"}), _w("dzoBars", 6, 2, {"metric": "episodes"}),
+        _w("matrix", 12, 4)]},
     {"id": "sys-dzo-card", "name": "Карточка ДЗО", "role": "ДЗО",
      "description": "Деньги, скорость, ТО, связь под одно ДЗО.", "widgets": [
         _w("kpiTile", 3, 1, {"metric": "potential"}), _w("kpiTile", 3, 1, {"metric": "episodes"}),
