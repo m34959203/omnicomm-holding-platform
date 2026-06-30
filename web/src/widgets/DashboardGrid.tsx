@@ -18,6 +18,7 @@ export default function DashboardGrid({ layout, mode, data, onChange }: {
   const ref = useRef<HTMLDivElement>(null);
   const [mobile, setMobile] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [cfgId, setCfgId] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ w: WidgetInstance; i: number } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -37,6 +38,10 @@ export default function DashboardGrid({ layout, mode, data, onChange }: {
     if (fi < 0 || ti < 0) return;
     const [m] = arr.splice(fi, 1); arr.splice(ti, 0, m); onChange(arr);
   };
+
+  const setSettings = (id: string, patch: Record<string, unknown>) =>
+    onChange(widgets.map((w) => w.id === id ? { ...w, settings: { ...(w.settings || {}), ...patch } } : w));
+  const dzoName = (org?: string) => org ? (data.dzoList.find((d) => d.org_id === org)?.name ?? org) : null;
 
   const remove = (id: string) => {
     const i = widgets.findIndex((w) => w.id === id); if (i < 0) return;
@@ -104,14 +109,45 @@ export default function DashboardGrid({ layout, mode, data, onChange }: {
                   padding: "8px 11px", borderBottom: `1px solid ${C.headRule}`,
                   cursor: edit ? "grab" : "default", flexShrink: 0,
                 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: C.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                   {edit && <span style={{ color: C.faint2, marginRight: 6 }}>⠿</span>}{meta.title}
+                  {inst.settings?.scope ? <span title="Закреплён за ДЗО" style={{ marginLeft: 6, fontSize: 10, color: C.blue, background: "#eef4fd", borderRadius: 8, padding: "1px 6px", fontWeight: 600 }}>🔒 {dzoName(inst.settings.scope as string)}</span> : null}
                 </span>
                 {edit && (
-                  <button onClick={() => remove(inst.id)} title="Удалить"
-                    style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 2 }}>×</button>
+                  <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    {(meta.metricOptions || meta.scopable) && (
+                      <button onClick={() => setCfgId(cfgId === inst.id ? null : inst.id)} title="Настройки"
+                        style={{ border: "none", background: "transparent", color: cfgId === inst.id ? C.blue : C.faint, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 2 }}>⚙</button>
+                    )}
+                    <button onClick={() => remove(inst.id)} title="Удалить"
+                      style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 2 }}>×</button>
+                  </span>
                 )}
               </div>
+              {/* настройки виджета */}
+              {edit && cfgId === inst.id && (
+                <div style={{ position: "absolute", top: 38, right: 6, zIndex: 30, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(20,30,50,.14)", padding: 10, width: 220, fontFamily: FONT }}>
+                  {meta.metricOptions && (
+                    <label style={{ display: "block", fontSize: 10.5, color: C.muted2, fontWeight: 600, marginBottom: 10 }}>Метрика
+                      <select value={(inst.settings?.metric as string) || meta.metricOptions[0].value}
+                        onChange={(e) => setSettings(inst.id, { metric: e.target.value })}
+                        style={{ width: "100%", marginTop: 4, padding: "5px 6px", fontSize: 12, border: `1px solid ${C.railLine}`, borderRadius: 5 }}>
+                        {meta.metricOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {meta.scopable && (
+                    <label style={{ display: "block", fontSize: 10.5, color: C.muted2, fontWeight: 600 }}>Скоуп (ДЗО)
+                      <select value={(inst.settings?.scope as string) || ""}
+                        onChange={(e) => setSettings(inst.id, { scope: e.target.value || undefined })}
+                        style={{ width: "100%", marginTop: 4, padding: "5px 6px", fontSize: 12, border: `1px solid ${C.railLine}`, borderRadius: 5 }}>
+                        <option value="">Весь скоуп (как слайсер)</option>
+                        {data.dzoList.map((d) => <option key={d.org_id} value={d.org_id}>{d.name}</option>)}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
               {/* тело */}
               <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 12 }}>
                 <Comp id={inst.id} data={data} settings={inst.settings} />

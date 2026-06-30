@@ -303,6 +303,8 @@ export const updateLayout = (id: string, name: string, layout: Record<string, un
 export const deleteLayout = (id: string) => send<{ ok: boolean }>(`/api/layouts/${id}`, "DELETE");
 export const getTemplates = () => get<{ templates: ServerTemplate[] }>("/api/templates");
 export const applyTemplate = (id: string) => send<{ layout: ServerLayout }>(`/api/templates/${id}/apply`, "POST");
+export const saveAsTemplate = (id: string, name: string, role = "", description = "") =>
+  send<{ template: ServerTemplate }>(`/api/layouts/${id}/save-as-template`, "POST", { name, role, description });
 
 // ---- Повторяемость / тренд превышений (вкладка speed-trend) ----
 export interface SpeedTrendRow {

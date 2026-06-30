@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ServerLayout, ServerTemplate, applyTemplate, createLayout, deleteLayout,
-  getDefaultLayout, getLayouts, getTemplates, updateLayout,
+  getDefaultLayout, getLayouts, getTemplates, saveAsTemplate, updateLayout,
 } from "@/lib/api";
 import { C, FONT } from "@/lib/atlas";
 import DashboardGrid from "@/widgets/DashboardGrid";
@@ -19,9 +19,9 @@ const btn = (active = false): React.CSSProperties => ({
   fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
 });
 const widgetsOf = (l: ServerLayout): WidgetInstance[] =>
-  ((l.layout?.widgets as WidgetInstance[]) || []);
+  ((l.layout?.widgets as WidgetInstance[]) || []).map((w) => w.id ? w : { ...w, id: uid() });
 
-export default function Desktop({ data }: { data: WidgetData }) {
+export default function Desktop({ data, canTemplate }: { data: WidgetData; canTemplate?: boolean }) {
   const [layouts, setLayouts] = useState<ServerLayout[]>([]);
   const [cur, setCur] = useState<ServerLayout | null>(null);
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
@@ -106,6 +106,12 @@ export default function Desktop({ data }: { data: WidgetData }) {
           <button style={btn(mode === "edit")} onClick={() => setMode("edit")}>Изменить</button>
           {mode === "edit" && cur && <button style={btn()} onClick={() => setAddOpen((v) => !v)}>+ Виджет</button>}
           {mode === "edit" && cur && <button style={btn()} onClick={removeCurrent}>Удалить стол</button>}
+          {mode === "edit" && cur && canTemplate && (
+            <button style={btn()} onClick={async () => {
+              const name = window.prompt("Название шаблона ДЗО:", cur.name);
+              if (name) { await saveAsTemplate(cur.id, name).catch(() => {}); getTemplates().then((r) => setTpls(r.templates)).catch(() => {}); }
+            }}>Сохранить как шаблон</button>
+          )}
           <button style={btn()} onClick={() => setGallery(true)}>Шаблоны</button>
           {addOpen && (
             <div style={{ position: "absolute", top: 38, right: 0, zIndex: 40, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(20,30,50,.12)", padding: 6, width: 230, maxHeight: 320, overflow: "auto" }}>

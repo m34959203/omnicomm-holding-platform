@@ -3,14 +3,17 @@
 // atlas/ui + текущий data-слой (серверные агрегаты/скоуп). Без тяжёлых либ.
 
 import { Economics, FuelDetail, Maintenance, Recommendation, SensorHealth, SpeedTrend, ViolationsDetail } from "@/lib/api";
-import { Agg, C, DzoRow, compactM, mlnTg, ru } from "@/lib/atlas";
+import { Agg, C, DzoRow, aggregate, compactM, mlnTg, ru } from "@/lib/atlas";
 import { BarRow, Donut, Gauge, Legend, Td, Th, tableWrap, theadStyle, trRule } from "@/components/atlas/ui";
 import { WidgetType } from "./types";
 
 // Данные, доступные всем виджетам (вычислены в page.tsx, со скоупом ДЗО).
 export interface WidgetData {
-  rows: DzoRow[]; agg: Agg;
+  rows: DzoRow[]; agg: Agg;                 // текущий глобальный скоуп (слайсер)
+  allRows: DzoRow[];                        // все ДЗО — для per-widget override
   eco: Economics | null;
+  ecoByOrg: Record<string, Economics>;      // экономика по ДЗО — для override
+  dzoList: { org_id: string; name: string }[];
   sensor: SensorHealth | null;
   maint: Maintenance | null;
   recs: Recommendation[];
@@ -25,6 +28,7 @@ export interface WidgetProps {
   data: WidgetData;
   settings?: Record<string, unknown>;
 }
+export interface MetricOpt { value: string; label: string }
 export interface WidgetMeta {
   type: WidgetType;
   title: string;
@@ -33,6 +37,20 @@ export interface WidgetMeta {
   defaultSize: { w: number; h: number };
   minSize?: { w: number; h: number };
   heavy?: boolean;
+  metricOptions?: MetricOpt[];     // настраиваемая метрика (⚙ в edit)
+  scopable?: boolean;              // поддерживает per-widget override ДЗО
+}
+
+// Per-widget override: settings.scope = org_id одного ДЗО → пересчёт rows/agg/eco.
+export function scopedView(data: WidgetData, settings?: Record<string, unknown>): {
+  rows: DzoRow[]; agg: Agg; eco: Economics | null;
+} {
+  const org = settings?.scope as string | undefined;
+  if (org) {
+    const r = data.allRows.find((x) => x.org_id === org);
+    if (r) return { rows: [r], agg: aggregate([r]), eco: data.ecoByOrg[org] ?? null };
+  }
+  return { rows: data.rows, agg: data.agg, eco: data.eco };
 }
 
 const TYPE_COLORS = [C.blue, C.green, C.amber, C.teal, C.greySoft, "#7d6bd0", "#c46aa5", C.faint2];
@@ -40,14 +58,15 @@ const muted = (t: string) => <div style={{ fontSize: 11.5, color: C.faint, paddi
 
 // ---- KPI-плитка (настраиваемая метрика) ----
 function KpiTile({ data, settings }: WidgetProps) {
-  const a = data.agg;
+  const { agg: a, eco } = scopedView(data, settings);
+  const scoped = !!settings?.scope;
   const m = (settings?.metric as string) || "potential";
   const map: Record<string, { label: string; value: string; color: string }> = {
     potential: { label: "Потенциал экономии", value: mlnTg(a.potential), color: C.green },
-    coi: { label: "COI / год", value: data.eco ? mlnTg(data.eco.coi_annual_kzt) : "—", color: C.amber },
+    coi: { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber },
     fuelCost: { label: "Стоимость топлива", value: mlnTg(a.fuelCost), color: C.ink },
     cpkm: { label: "₸ / км", value: a.rateOk ? ru(a.cpkm) + " ₸" : "—", color: C.teal },
-    episodes: { label: "Превышения", value: ru(data.violDet?.total ?? a.episodes), color: C.amber },
+    episodes: { label: "Превышения", value: ru(scoped ? a.episodes : (data.violDet?.total ?? a.episodes)), color: C.amber },
     sensor: { label: "Связь / ТО", value: Math.round(a.sensorPct * 100) + "% · " + a.overdue, color: C.blue },
     veh: { label: "ТС", value: ru(a.veh), color: C.ink },
   };
@@ -61,8 +80,8 @@ function KpiTile({ data, settings }: WidgetProps) {
 }
 
 // ---- Структура потерь (economics buckets) ----
-function EconomicsW({ data }: WidgetProps) {
-  const b = data.eco?.buckets ?? [];
+function EconomicsW({ data, settings }: WidgetProps) {
+  const b = scopedView(data, settings).eco?.buckets ?? [];
   const max = Math.max(1, ...b.map((x) => x.potential_kzt));
   if (!b.length) return muted("Нет данных за период (экономика — холдинг/ДЗО)");
   return (
@@ -94,7 +113,8 @@ function DzoBars({ data, settings }: WidgetProps) {
     overdue: { val: (r) => r.overdue, fmt: (r) => String(r.overdue), color: C.red },
   };
   const c = cfg[m] ?? cfg.potential;
-  const list = [...data.rows].filter((r) => (c.ok ? c.ok(r) : c.val(r) > 0)).sort((a, b) => c.val(b) - c.val(a)).slice(0, 8);
+  const { rows: srows } = scopedView(data, settings);
+  const list = [...srows].filter((r) => (c.ok ? c.ok(r) : c.val(r) > 0)).sort((a, b) => c.val(b) - c.val(a)).slice(0, 8);
   const max = Math.max(1, ...list.map(c.val));
   if (!list.length) return muted("Нет данных");
   return (
@@ -105,10 +125,11 @@ function DzoBars({ data, settings }: WidgetProps) {
 }
 
 // ---- Парк по ДЗО (donut) ----
-function ParkDonut({ data }: WidgetProps) {
-  const byVeh = [...data.rows].sort((a, b) => b.veh - a.veh);
+function ParkDonut({ data, settings }: WidgetProps) {
+  const { rows, agg } = scopedView(data, settings);
+  const byVeh = [...rows].sort((a, b) => b.veh - a.veh);
   const top = byVeh.slice(0, 6); const rest = byVeh.slice(6).reduce((a, r) => a + r.veh, 0);
-  const total = data.agg.veh || 1;
+  const total = agg.veh || 1;
   const slices = [
     ...top.map((r, i) => ({ label: r.name, pct: r.veh / total * 100, color: TYPE_COLORS[i % TYPE_COLORS.length] })),
     ...(rest ? [{ label: "Прочие", pct: rest / total * 100, color: C.faint2 }] : []),
@@ -170,8 +191,8 @@ function RecsW({ data }: WidgetProps) {
 }
 
 // ---- Матрица по ДЗО ----
-function MatrixW({ data }: WidgetProps) {
-  const rows = [...data.rows].sort((a, b) => b.veh - a.veh);
+function MatrixW({ data, settings }: WidgetProps) {
+  const rows = [...scopedView(data, settings).rows].sort((a, b) => b.veh - a.veh);
   return tableWrap(<>
     <thead><tr style={theadStyle}><Th>ДЗО</Th><Th right>ТС</Th><Th right>Потенциал ₸</Th><Th right>₸/км</Th><Th right>Превышения</Th><Th right>Связь</Th><Th right>ТО</Th></tr></thead>
     <tbody>
@@ -261,15 +282,26 @@ function SpeedTrendW({ data }: WidgetProps) {
   );
 }
 
+const KPI_METRICS: MetricOpt[] = [
+  { value: "potential", label: "Потенциал экономии" }, { value: "coi", label: "COI / год" },
+  { value: "fuelCost", label: "Стоимость топлива" }, { value: "cpkm", label: "₸ / км" },
+  { value: "episodes", label: "Превышения" }, { value: "sensor", label: "Связь / ТО" },
+  { value: "veh", label: "ТС" },
+];
+const BAR_METRICS: MetricOpt[] = [
+  { value: "potential", label: "Потенциал ₸" }, { value: "cpkm", label: "₸ / км" },
+  { value: "l100", label: "л/100" }, { value: "episodes", label: "Превышения" }, { value: "overdue", label: "Просрочено ТО" },
+];
+
 export const WIDGETS: Record<WidgetType, WidgetMeta> = {
-  kpiTile: { type: "kpiTile", title: "KPI-плитка", dataKey: "dashboard", component: KpiTile, defaultSize: { w: 3, h: 1 }, minSize: { w: 2, h: 1 } },
-  economics: { type: "economics", title: "Структура потерь", dataKey: "economics", component: EconomicsW, defaultSize: { w: 4, h: 2 }, minSize: { w: 3, h: 2 } },
-  dzoBars: { type: "dzoBars", title: "Бары по ДЗО", dataKey: "dashboard", component: DzoBars, defaultSize: { w: 5, h: 2 }, minSize: { w: 3, h: 2 } },
-  parkDonut: { type: "parkDonut", title: "Парк по ДЗО", dataKey: "dashboard", component: ParkDonut, defaultSize: { w: 4, h: 2 }, minSize: { w: 3, h: 2 } },
+  kpiTile: { type: "kpiTile", title: "KPI-плитка", dataKey: "dashboard", component: KpiTile, defaultSize: { w: 3, h: 1 }, minSize: { w: 2, h: 1 }, metricOptions: KPI_METRICS, scopable: true },
+  economics: { type: "economics", title: "Структура потерь", dataKey: "economics", component: EconomicsW, defaultSize: { w: 4, h: 2 }, minSize: { w: 3, h: 2 }, scopable: true },
+  dzoBars: { type: "dzoBars", title: "Бары по ДЗО", dataKey: "dashboard", component: DzoBars, defaultSize: { w: 5, h: 2 }, minSize: { w: 3, h: 2 }, metricOptions: BAR_METRICS, scopable: true },
+  parkDonut: { type: "parkDonut", title: "Парк по ДЗО", dataKey: "dashboard", component: ParkDonut, defaultSize: { w: 4, h: 2 }, minSize: { w: 3, h: 2 }, scopable: true },
   sensorHealth: { type: "sensorHealth", title: "Качество данных", dataKey: "sensor_health", component: SensorW, defaultSize: { w: 4, h: 2 }, minSize: { w: 3, h: 2 } },
   maintenance: { type: "maintenance", title: "Контроль ТО", dataKey: "maintenance", component: MaintW, defaultSize: { w: 5, h: 3 }, minSize: { w: 4, h: 2 } },
   recommendations: { type: "recommendations", title: "Топ нарушителей", dataKey: "recommendations", component: RecsW, defaultSize: { w: 5, h: 3 }, minSize: { w: 3, h: 2 } },
-  matrix: { type: "matrix", title: "Матрица по ДЗО", dataKey: "dashboard", component: MatrixW, defaultSize: { w: 12, h: 3 }, minSize: { w: 6, h: 2 } },
+  matrix: { type: "matrix", title: "Матрица по ДЗО", dataKey: "dashboard", component: MatrixW, defaultSize: { w: 12, h: 3 }, minSize: { w: 6, h: 2 }, scopable: true },
   violations: { type: "violations", title: "Нарушения (детально)", dataKey: "violations", component: ViolationsW, defaultSize: { w: 7, h: 4 }, minSize: { w: 5, h: 3 } },
   fuel: { type: "fuel", title: "Топливо (детально)", dataKey: "fuel", component: FuelW, defaultSize: { w: 7, h: 4 }, minSize: { w: 5, h: 3 } },
   speedTrend: { type: "speedTrend", title: "Повторяемость", dataKey: "speed_trend", component: SpeedTrendW, defaultSize: { w: 12, h: 4 }, minSize: { w: 6, h: 3 } },

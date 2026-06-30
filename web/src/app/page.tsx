@@ -272,11 +272,13 @@ export default function Page() {
 
   // Данные для виджетов гибкого «Рабочего стола» (та же скоупленная модель Atlas).
   const widgetData: WidgetData = useMemo(() => ({
-    rows, agg, eco: ecoEff, sensor: sensorS, maint: maintS, recs: recsS,
+    rows, agg, allRows, ecoByOrg: dash?.economics_by_org ?? {},
+    dzoList: dzoForRail.map((d) => ({ org_id: d.org_id, name: d.name })),
+    eco: ecoEff, sensor: sensorS, maint: maintS, recs: recsS,
     violDet, violDetLoading, fuelDet, fuelDetLoading, fuelPrice,
     trend, trendLoading, onVehicle, onSelectDzo: toggle,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [rows, agg, ecoEff, sensorS, maintS, recsS, violDet, violDetLoading, fuelDet, fuelDetLoading, fuelPrice, trend, trendLoading]);
+  }), [rows, agg, allRows, dash, dzoForRail, ecoEff, sensorS, maintS, recsS, violDet, violDetLoading, fuelDet, fuelDetLoading, fuelPrice, trend, trendLoading]);
   // Окно карточки = сутки эпизода (локальный день ts); иначе период отчёта.
   const vehPeriod = (() => {
     if (!vehCard?.ts) return undefined;
@@ -327,7 +329,7 @@ export default function Page() {
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
               {page === "quality" && <Quality rows={rows} sensor={sensorS} onSelectDzo={toggle} onVehicle={onVehicle} />}
               {page === "maint" && <Maint rows={rows} maint={maintS} onSelectDzo={toggle} onVehicle={onVehicle} />}
-              {page === "desktop" && <Desktop data={widgetData} />}
+              {page === "desktop" && <Desktop data={widgetData} canTemplate={me?.role === "admin" || me?.role === "editor"} />}
             </>
           )}
         </main>
