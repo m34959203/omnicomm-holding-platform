@@ -5,9 +5,13 @@ import { BarRow, Donut, Kpi, Panel } from "./ui";
 
 const TYPE_COLORS = [C.blue, C.green, C.amber, C.teal, C.greySoft, "#7d6bd0", "#c46aa5", C.faint2];
 
-export default function Money({ rows, agg, eco }: { rows: DzoRow[]; agg: Agg; eco: Economics | null }) {
+export default function Money({ rows, agg, eco, overrunKzt, overrunProvisional }: {
+  rows: DzoRow[]; agg: Agg; eco: Economics | null;
+  overrunKzt: number; overrunProvisional: boolean;
+}) {
   const kpis = [
     { label: "Потенциал экономии", value: mlnTg(agg.potential), color: C.green, sub: "холостой ход + износ" },
+    { label: "Перерасход к норме", value: overrunKzt > 0 ? mlnTg(overrunKzt) : "—", color: C.red, sub: overrunProvisional ? "предв. · детали в «Топливо»" : "детали в «Топливо»" },
     { label: "COI / месяц", value: eco ? mlnTg(eco.coi_monthly_kzt) : "—", color: C.amber, sub: "стоимость простоя" },
     { label: "COI / год", value: eco ? mlnTg(eco.coi_annual_kzt) : "—", color: C.amber, sub: "≈ оценка" },
     { label: "Стоимость топлива", value: mlnTg(agg.fuelCost), color: C.ink, sub: "за период" },
