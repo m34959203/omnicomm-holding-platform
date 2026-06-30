@@ -201,10 +201,29 @@ export interface Job {
 }
 
 // ---- HTTP ----
+export class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
+}
 async function get<T>(path: string): Promise<T> {
-  const r = await fetch(`${API}${path}`, { cache: "no-store" });
-  if (!r.ok) throw new Error(`${path} → ${r.status}`);
+  const r = await fetch(`${API}${path}`, { cache: "no-store", credentials: "include" });
+  if (!r.ok) throw new HttpError(r.status, `${path} → ${r.status}`);
   return r.json();
+}
+
+// ---- Аутентификация (cookie-сессия) ----
+export interface Me { username: string; role: string; org_id: string | null; org_name: string | null }
+export const getMe = () => get<Me>("/api/me");
+export async function login(username: string, password: string): Promise<Me> {
+  const r = await fetch(`${API}/api/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    credentials: "include", body: JSON.stringify({ username, password }),
+  });
+  if (!r.ok) throw new HttpError(r.status, "login");
+  return r.json();
+}
+export async function logout(): Promise<void> {
+  await fetch(`${API}/api/logout`, { method: "POST", credentials: "include" });
 }
 
 export const getDashboard = (key?: string) =>
@@ -332,6 +351,7 @@ export async function startSync(
   const r = await fetch(`${API}/api/sync`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ demo, ...(range ?? {}) }),
   });
   if (!r.ok) throw new Error(`sync → ${r.status}`);

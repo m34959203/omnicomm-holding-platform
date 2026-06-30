@@ -51,6 +51,7 @@ def _month_span(start_ts: int, end_ts: int) -> list[str]:
 def build_speed_trend(
     *, from_iso: Optional[str] = None, to_iso: Optional[str] = None,
     min_duration_s: int = 0, min_excess: float = 0.0, max_excess: float = 999.0,
+    allowed: Optional[set] = None,   # None → все ТС; set → только эти terminal_id (скоуп ДЗО)
     raw_path: str = raw_store.DEFAULT_PATH,
 ) -> dict:
     cov = raw_store.coverage(raw_path)
@@ -78,6 +79,8 @@ def build_speed_trend(
     grand = 0
 
     for tid, episodes in viol.items():
+        if allowed is not None and tid not in allowed:
+            continue
         by_month: dict[str, int] = {}
         for e in episodes:
             if e.duration_s < min_duration_s:

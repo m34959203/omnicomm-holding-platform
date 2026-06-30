@@ -49,6 +49,14 @@ async def proxy_api(request: web.Request) -> web.StreamResponse:
                     status=upstream.status, body=data,
                     content_type=upstream.content_type,
                 )
+                # Проброс ответных заголовков (КРИТИЧНО: Set-Cookie для сессии входа).
+                skip = {"content-length", "transfer-encoding", "content-encoding",
+                        "connection", "content-type"}
+                for k, v in upstream.headers.items():
+                    if k.lower() not in skip and k.lower() != "set-cookie":
+                        resp.headers[k] = v
+                for cookie in upstream.headers.getall("Set-Cookie", []):
+                    resp.headers.add("Set-Cookie", cookie)
                 return resp
     except Exception as exc:  # noqa: BLE001 — мост не должен падать
         return web.json_response(
