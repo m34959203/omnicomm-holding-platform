@@ -23,7 +23,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from omnicomm_report import config
@@ -234,6 +234,22 @@ def logout(response: Response) -> dict:
     return {"ok": True}
 
 
+# Путь БЕЗ .xlsx: Cloudflare кеширует статические расширения по URL и отдал бы файл
+# мимо авторизации. Без расширения + no-store CF не кеширует, авторизация на каждом запросе.
+@app.get("/api/accounts")
+def accounts_xlsx(request: Request) -> FileResponse:
+    """Excel со всеми учётками ДЗО — ТОЛЬКО для админа/КАП (за входом)."""
+    v = _require_viewer(request)
+    if v.get("role") != "admin" and v.get("org_id") is not None:
+        raise HTTPException(403, "Только администратор/КАП")
+    path = os.path.join("data", "accounts.xlsx")
+    if not os.path.exists(path):
+        raise HTTPException(404, "Файл учёток не найден")
+    return FileResponse(path, filename="omnicomm-accounts.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Cache-Control": "no-store, private"})
+
+
 @app.get("/api/me")
 def me(request: Request) -> dict:
     v = auth_session.viewer(request)
@@ -442,5 +458,7 @@ def dashboard_xlsx(request: Request, period_key: Optional[str] = Query(None)) ->
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        headers={"Content-Disposition": f'attachment; filename="{fname}"',
+                 # no-store: иначе CF кеширует .xlsx по URL и отдаёт чужой ДЗО-экспорт.
+                 "Cache-Control": "no-store, private"},
     )

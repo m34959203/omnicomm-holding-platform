@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation,
-  FuelDetail, Me, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm,
+  API, FuelDetail, Me, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm,
   excelUrl, getDashboard, getFuel, getFuelDetail, getGeozones, getJob, getMaintenance,
   getMe, getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail,
   getViolationsForm, logout, startSync,
@@ -295,6 +295,7 @@ export default function Page() {
         snapshot={snapLabel} periods={periods} excelHref={excelUrl(periodKey || undefined)}
         onSync={onSync} syncing={syncing}
         user={me?.username} scope={me?.org_name} onLogout={onLogout}
+        accountsHref={(me && (me.role === "admin" || !me.org_id)) ? `${API}/api/accounts` : undefined}
       />
 
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
