@@ -281,6 +281,25 @@ export interface ViolationsDetail {
   from: string; to: string; source: string;
   params: { minDurationSec: number; minExcess: number; maxExcess: number };
 }
+// ---- Топливо «Работа группы по ТС» + норма (справочно, P2.2) ----
+export interface FuelDetailRow {
+  vehicleId: string; vehicle: string; transport: boolean;
+  mileage_km: number; moto_h: number; fuel_l: number;
+  fact_l100: number | null; norm_l100: number | null;
+  refuel_l: number; drain_l: number; delivery_l: number;
+}
+export interface FuelDetail {
+  rows: FuelDetailRow[]; total: number; returned: number; capped: boolean;
+  with_norm: number; from: string; to: string; shifts_available: boolean; source: string;
+}
+export const getFuelDetail = (q: { from?: string; to?: string } = {}) => {
+  const p = new URLSearchParams();
+  if (q.from) p.set("from", q.from);
+  if (q.to) p.set("to", q.to);
+  const qs = p.toString();
+  return get<FuelDetail>(`/api/fuel-detail${qs ? `?${qs}` : ""}`);
+};
+
 export const getViolationsDetail = (q: Partial<SpeedThresholds> & { from?: string; to?: string } = {}) => {
   const p = new URLSearchParams();
   if (q.from) p.set("from", q.from);

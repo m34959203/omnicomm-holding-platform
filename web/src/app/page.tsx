@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation,
-  SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm, excelUrl,
-  getDashboard, getFuel, getGeozones, getJob, getMaintenance, getRecommendations,
-  getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail, getViolationsForm, startSync,
+  FuelDetail, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm,
+  excelUrl, getDashboard, getFuel, getFuelDetail, getGeozones, getJob, getMaintenance,
+  getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail,
+  getViolationsForm, startSync,
 } from "@/lib/api";
 import {
   Agg, C, DzoRow, FONT, aggregate, buildDzoRows, dzoNodes,
@@ -18,14 +19,15 @@ import Money from "@/components/atlas/Money";
 import Speed from "@/components/atlas/Speed";
 import Violations from "@/components/atlas/Violations";
 import Trend, { TrendMetric } from "@/components/atlas/Trend";
+import Fuel from "@/components/atlas/Fuel";
 import Quality from "@/components/atlas/Quality";
 import Maint from "@/components/atlas/Maint";
 import VehicleCard from "@/components/VehicleCard";
 
-type PageKey = "overview" | "money" | "speed" | "violations" | "trend" | "quality" | "maint";
+type PageKey = "overview" | "money" | "fuel" | "speed" | "violations" | "trend" | "quality" | "maint";
 const PAGES: [PageKey, string][] = [
-  ["overview", "Обзор"], ["money", "Деньги"], ["speed", "Скоростной режим"],
-  ["violations", "Нарушения"], ["trend", "Повторяемость"],
+  ["overview", "Обзор"], ["money", "Деньги"], ["fuel", "Топливо"],
+  ["speed", "Скоростной режим"], ["violations", "Нарушения"], ["trend", "Повторяемость"],
   ["quality", "Качество данных"], ["maint", "Контроль ТО"],
 ];
 const ACTIVE_WINDOW_S = 7 * 86400;
@@ -69,6 +71,8 @@ export default function Page() {
   const [metric, setMetric] = useState<TrendMetric>("episodes");
   const [violDet, setViolDet] = useState<ViolationsDetail | null>(null);
   const [violDetLoading, setViolDetLoading] = useState(false);
+  const [fuelDet, setFuelDet] = useState<FuelDetail | null>(null);
+  const [fuelDetLoading, setFuelDetLoading] = useState(false);
 
   const load = useCallback(async (key?: string) => {
     try {
@@ -131,6 +135,21 @@ export default function Page() {
     return () => { alive = false; clearTimeout(t); };
   }, [thr, periodIso, state]);
 
+  // Топливо «Работа группы по ТС» — за период выбранного снимка.
+  useEffect(() => {
+    if (state !== "ready" || !periodIso) return;
+    let alive = true;
+    setFuelDetLoading(true);
+    (async () => {
+      try {
+        const data = await getFuelDetail({ from: periodIso.from, to: periodIso.to });
+        if (alive) setFuelDet(data);
+      } catch { if (alive) setFuelDet(null); }
+      finally { if (alive) setFuelDetLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [periodIso, state]);
+
   const onSync = async () => {
     if (syncing) return;
     setSyncing(true);
@@ -190,6 +209,9 @@ export default function Page() {
     }
     return map;
   }, [orgs, byId, vehicleOrg]);
+
+  const dzoNameById = useMemo(() => new Map(dzoNodes(orgs).map((n) => [n.org_id, n.name])), [orgs]);
+  const dzoOf = (vid: string) => dzoNameById.get(vehTopDzo[vid]) ?? "—";
 
   // Активные за 7 дней (P1.5) — по последнему сигналу терминала в скоупе.
   const activeCount = useMemo(
@@ -254,6 +276,7 @@ export default function Page() {
             <>
               {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} />}
               {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} />}
+              {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} onVehicle={onVehicle} />}
               {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onVehicle={onVehicle} />}
               {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}

@@ -315,6 +315,18 @@ def violations_detail_ep(
     )
 
 
+@app.get("/api/fuel-detail")
+def fuel_detail_ep(
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = Query(None),
+) -> dict:
+    """Топливо «Работа группы по ТС»: пробег/моточасы/расход/факт л-100/норма
+    (Omnicomm, справочно)/заправки/сливы/выдача за период из архива. Скоуп — на фронте.
+    Вердикт перерасхода НЕ выводится (нормы не согласованы)."""
+    from . import fuel_norms as fnm
+    return fnm.build_fuel_norms(from_iso=from_, to_iso=to)
+
+
 @app.get("/api/maintenance")
 def maintenance(period_key: Optional[str] = Query(None)) -> dict:
     """Контроль ТО (R6): наработка и статусы по парку."""
