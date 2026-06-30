@@ -280,6 +280,24 @@ def fleet_table(period_key: Optional[str] = Query(None)) -> dict:
             "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
 
 
+@app.get("/api/speed-trend")
+def speed_trend(
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = Query(None),
+    minDurationSec: int = Query(0),
+    minExcess: float = Query(0.0),
+    maxExcess: float = Query(999.0),
+) -> dict:
+    """Повторяемость превышений: матрица ТС × месяц за произвольный диапазон
+    (архив визитов), с порогами длительности и величины превышения. Скоуп ДЗО
+    и метрика считаются на фронте по vehicle_org (как у остальных вкладок)."""
+    from . import speed_trend as st
+    return st.build_speed_trend(
+        from_iso=from_, to_iso=to,
+        min_duration_s=minDurationSec, min_excess=minExcess, max_excess=maxExcess,
+    )
+
+
 @app.get("/api/maintenance")
 def maintenance(period_key: Optional[str] = Query(None)) -> dict:
     """Контроль ТО (R6): наработка и статусы по парку."""

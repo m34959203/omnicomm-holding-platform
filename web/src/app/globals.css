@@ -157,3 +157,10 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .rise, .sweep::after, .live-dot { animation: none; opacity: 1; }
 }
+
+/* ===== Atlas BI (Power BI стиль) — главный дашборд ===== */
+html, body { margin: 0; padding: 0; }
+body { background: #eef1f5; }
+.num { font-variant-numeric: tabular-nums; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #c4ccd8; border-radius: 6px; }

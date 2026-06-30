@@ -256,6 +256,29 @@ export const getVehicleTelemetry = (id: string) =>
 
 export const getSnapshots = () => get<Meta[]>(`/api/snapshots`);
 
+// ---- Повторяемость / тренд превышений (вкладка speed-trend) ----
+export interface SpeedTrendRow {
+  vehicleId: string; name: string; byMonth: Record<string, number>; all: number;
+}
+export interface SpeedTrend {
+  months: string[]; rows: SpeedTrendRow[]; total: Record<string, number>;
+  heat: { min: number; p50: number; max: number };
+  vehicles: number; episodes: number; from: string; to: string;
+  max_all: number; source: string;
+  params: { minDurationSec: number; minExcess: number; maxExcess: number };
+}
+export interface SpeedThresholds { minDurationSec: number; minExcess: number; maxExcess: number }
+export const getSpeedTrend = (q: Partial<SpeedThresholds> & { from?: string; to?: string } = {}) => {
+  const p = new URLSearchParams();
+  if (q.from) p.set("from", q.from);
+  if (q.to) p.set("to", q.to);
+  if (q.minDurationSec) p.set("minDurationSec", String(q.minDurationSec));
+  if (q.minExcess) p.set("minExcess", String(q.minExcess));
+  if (q.maxExcess != null && q.maxExcess < 999) p.set("maxExcess", String(q.maxExcess));
+  const qs = p.toString();
+  return get<SpeedTrend>(`/api/speed-trend${qs ? `?${qs}` : ""}`);
+};
+
 export async function startSync(
   demo = false,
   range?: { start_ts: number; end_ts: number },
