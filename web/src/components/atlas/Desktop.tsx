@@ -3,8 +3,9 @@
 // несколько столов, row-level на сервере. Виджеты — из Atlas-данных.
 import { useEffect, useRef, useState } from "react";
 import {
-  ServerLayout, ServerTemplate, applyTemplate, createLayout, deleteLayout,
-  getDefaultLayout, getLayouts, getTemplates, saveAsTemplate, updateLayout,
+  Schedule, ServerLayout, ServerTemplate, applyTemplate, createLayout, createSchedule,
+  deleteLayout, deleteSchedule, getDefaultLayout, getLayouts, getSchedules, getTemplates,
+  saveAsTemplate, updateLayout,
 } from "@/lib/api";
 import { C, FONT } from "@/lib/atlas";
 import DashboardGrid from "@/widgets/DashboardGrid";
@@ -21,7 +22,7 @@ const btn = (active = false): React.CSSProperties => ({
 const widgetsOf = (l: ServerLayout): WidgetInstance[] =>
   ((l.layout?.widgets as WidgetInstance[]) || []).map((w) => w.id ? w : { ...w, id: uid() });
 
-export default function Desktop({ data, canTemplate }: { data: WidgetData; canTemplate?: boolean }) {
+export default function Desktop({ data, canTemplate, me }: { data: WidgetData; canTemplate?: boolean; me?: string }) {
   const [layouts, setLayouts] = useState<ServerLayout[]>([]);
   const [cur, setCur] = useState<ServerLayout | null>(null);
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
@@ -30,7 +31,11 @@ export default function Desktop({ data, canTemplate }: { data: WidgetData; canTe
   const [gallery, setGallery] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [sched, setSched] = useState(false);
   const saveT = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isOwner = cur ? (!me || cur.owner === me) : true;
+  const eMode = isOwner ? mode : "view";        // чужой shared-стол — только чтение
 
   const refreshList = () => getLayouts().then((r) => setLayouts(r.layouts)).catch(() => {});
 
@@ -50,12 +55,17 @@ export default function Desktop({ data, canTemplate }: { data: WidgetData; canTe
 
   const save = (next: WidgetInstance[]) => {
     setWidgets(next);
-    if (!cur) return;
+    if (!cur || !isOwner) return;
     if (saveT.current) clearTimeout(saveT.current);
     saveT.current = setTimeout(() => {
-      updateLayout(cur.id, cur.name, { schemaVersion: 1, name: cur.name, widgets: next, columns: 12 })
+      updateLayout(cur.id, cur.name, { schemaVersion: 1, name: cur.name, widgets: next, columns: 12 }, !!cur.shared)
         .then((r) => setCur(r.layout)).catch(() => {});
     }, 500);
+  };
+  const toggleShare = async () => {
+    if (!cur) return;
+    const r = await updateLayout(cur.id, cur.name, { schemaVersion: 1, name: cur.name, widgets, columns: 12 }, !cur.shared).catch(() => null);
+    if (r) { setCur(r.layout); refreshList(); }
   };
 
   const applyTpl = async (t: ServerTemplate) => {
@@ -101,17 +111,24 @@ export default function Desktop({ data, canTemplate }: { data: WidgetData; canTe
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6, position: "relative" }}>
-          <button style={btn(mode === "view")} onClick={() => setMode("view")}>Просмотр</button>
-          <button style={btn(mode === "edit")} onClick={() => setMode("edit")}>Изменить</button>
-          {mode === "edit" && cur && <button style={btn()} onClick={() => setAddOpen((v) => !v)}>+ Виджет</button>}
-          {mode === "edit" && cur && <button style={btn()} onClick={removeCurrent}>Удалить стол</button>}
-          {mode === "edit" && cur && canTemplate && (
-            <button style={btn()} onClick={async () => {
-              const name = window.prompt("Название шаблона ДЗО:", cur.name);
-              if (name) { await saveAsTemplate(cur.id, name).catch(() => {}); getTemplates().then((r) => setTpls(r.templates)).catch(() => {}); }
-            }}>Сохранить как шаблон</button>
+        <div style={{ display: "flex", gap: 6, position: "relative", alignItems: "center" }}>
+          {cur && !isOwner && (
+            <span style={{ fontSize: 11, color: C.muted, background: C.bg, borderRadius: 6, padding: "5px 9px" }}>🔒 только чтение · {cur.owner}</span>
           )}
+          {isOwner && <>
+            <button style={btn(mode === "view")} onClick={() => setMode("view")}>Просмотр</button>
+            <button style={btn(mode === "edit")} onClick={() => setMode("edit")}>Изменить</button>
+            {mode === "edit" && cur && <button style={btn()} onClick={() => setAddOpen((v) => !v)}>+ Виджет</button>}
+            {mode === "edit" && cur && <button style={btn(!!cur.shared)} onClick={toggleShare} title="Доступ ДЗО (только чтение)">{cur.shared ? "✓ Общий ДЗО" : "Поделиться"}</button>}
+            {mode === "edit" && cur && <button style={btn()} onClick={removeCurrent}>Удалить стол</button>}
+            {mode === "edit" && cur && canTemplate && (
+              <button style={btn()} onClick={async () => {
+                const name = window.prompt("Название шаблона ДЗО:", cur.name);
+                if (name) { await saveAsTemplate(cur.id, name).catch(() => {}); getTemplates().then((r) => setTpls(r.templates)).catch(() => {}); }
+              }}>Сохранить как шаблон</button>
+            )}
+          </>}
+          <button style={btn()} onClick={() => setSched(true)} title="Excel-отчёт на почту">Расписание</button>
           <button style={btn()} onClick={() => setGallery(true)}>Шаблоны</button>
           {addOpen && (
             <div style={{ position: "absolute", top: 38, right: 0, zIndex: 40, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(20,30,50,.12)", padding: 6, width: 230, maxHeight: 320, overflow: "auto" }}>
@@ -125,10 +142,51 @@ export default function Desktop({ data, canTemplate }: { data: WidgetData; canTe
       </div>
 
       {gridLayout && widgets.length
-        ? <DashboardGrid layout={gridLayout} mode={mode} data={data} onChange={save} />
+        ? <DashboardGrid layout={gridLayout} mode={eMode} data={data} onChange={save} />
         : <Empty onPick={() => setGallery(true)} />}
 
       {gallery && <Gallery tpls={tpls} onApply={applyTpl} onBlank={newBlank} onClose={() => setGallery(false)} hasLayout={!!widgets.length} />}
+      {sched && <ScheduleModal layoutId={cur?.id ?? null} onClose={() => setSched(false)} />}
+    </div>
+  );
+}
+
+function ScheduleModal({ layoutId, onClose }: { layoutId: string | null; onClose: () => void }) {
+  const [list, setList] = useState<Schedule[]>([]);
+  const [email, setEmail] = useState("");
+  const [freq, setFreq] = useState("daily");
+  const [hour, setHour] = useState(6);
+  const load = () => getSchedules().then((r) => setList(r.schedules)).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const add = async () => {
+    if (!email.includes("@")) return;
+    await createSchedule(email.trim(), freq, hour, layoutId ?? undefined).catch(() => {});
+    setEmail(""); load();
+  };
+  const inp: React.CSSProperties = { padding: "6px 8px", fontSize: 12, border: `1px solid ${C.railLine}`, borderRadius: 5, fontFamily: FONT };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(20,30,50,.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 20, width: "min(560px,96vw)", fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Excel-отчёт на почту</div>
+          <button onClick={onClose} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 13, cursor: "pointer", fontWeight: 600 }}>закрыть ✕</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.faint, marginBottom: 14 }}>Дашборд по вашему скоупу ДЗО уйдёт письмом по расписанию (UTC).</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e-mail" style={{ ...inp, flex: 1, minWidth: 160 }} />
+          <select value={freq} onChange={(e) => setFreq(e.target.value)} style={inp}><option value="daily">Ежедневно</option><option value="weekly">Еженедельно</option></select>
+          <select value={hour} onChange={(e) => setHour(+e.target.value)} style={inp}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}</select>
+          <button style={{ ...btn(true) }} onClick={add}>Добавить</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflow: "auto" }}>
+          {list.length ? list.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6, padding: "7px 10px" }}>
+              <span>{s.email} · {s.frequency === "weekly" ? "еженед." : "ежедн."} · {String(s.hour).padStart(2, "0")}:00 UTC</span>
+              <button onClick={async () => { await deleteSchedule(s.id).catch(() => {}); load(); }} style={{ border: "none", background: "transparent", color: C.red, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>удалить</button>
+            </div>
+          )) : <div style={{ fontSize: 11.5, color: C.faint }}>Расписаний нет</div>}
+        </div>
+      </div>
     </div>
   );
 }

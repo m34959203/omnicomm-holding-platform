@@ -115,10 +115,8 @@ export default function DashboardGrid({ layout, mode, data, onChange }: {
                 </span>
                 {edit && (
                   <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    {(meta.metricOptions || meta.scopable) && (
-                      <button onClick={() => setCfgId(cfgId === inst.id ? null : inst.id)} title="Настройки"
-                        style={{ border: "none", background: "transparent", color: cfgId === inst.id ? C.blue : C.faint, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 2 }}>⚙</button>
-                    )}
+                    <button onClick={() => setCfgId(cfgId === inst.id ? null : inst.id)} title="Настройки"
+                      style={{ border: "none", background: "transparent", color: cfgId === inst.id ? C.blue : C.faint, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 2 }}>⚙</button>
                     <button onClick={() => remove(inst.id)} title="Удалить"
                       style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 2 }}>×</button>
                   </span>
@@ -146,11 +144,20 @@ export default function DashboardGrid({ layout, mode, data, onChange }: {
                       </select>
                     </label>
                   )}
+                  <label style={{ display: "block", fontSize: 10.5, color: C.muted2, fontWeight: 600, marginTop: 10 }}>Заметка
+                    <textarea value={(inst.settings?.note as string) || ""} rows={2}
+                      onChange={(e) => setSettings(inst.id, { note: e.target.value || undefined })}
+                      placeholder="Комментарий к виджету…"
+                      style={{ width: "100%", marginTop: 4, padding: "5px 6px", fontSize: 11.5, border: `1px solid ${C.railLine}`, borderRadius: 5, resize: "vertical", fontFamily: FONT, boxSizing: "border-box" }} />
+                  </label>
                 </div>
               )}
               {/* тело */}
               <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 12 }}>
                 <Comp id={inst.id} data={data} settings={inst.settings} />
+                {inst.settings?.note ? (
+                  <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.headRule}`, fontSize: 11, color: C.muted, fontStyle: "italic", whiteSpace: "pre-wrap" }}>📝 {inst.settings.note as string}</div>
+                ) : null}
               </div>
               {/* угловой resize */}
               {edit && (

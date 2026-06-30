@@ -329,7 +329,7 @@ export default function Page() {
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
               {page === "quality" && <Quality rows={rows} sensor={sensorS} onSelectDzo={toggle} onVehicle={onVehicle} />}
               {page === "maint" && <Maint rows={rows} maint={maintS} onSelectDzo={toggle} onVehicle={onVehicle} />}
-              {page === "desktop" && <Desktop data={widgetData} canTemplate={me?.role === "admin" || me?.role === "editor"} />}
+              {page === "desktop" && <Desktop data={widgetData} canTemplate={me?.role === "admin" || me?.role === "editor"} me={me?.username} />}
             </>
           )}
         </main>
