@@ -1,16 +1,18 @@
 "use client";
-import { Recommendation, ViolationRow } from "@/lib/api";
-import { Agg, C, DzoRow, ru, severityBuckets, zonesFromViol } from "@/lib/atlas";
+import { Recommendation, ViolationsDetail } from "@/lib/api";
+import { C, DzoRow, ru } from "@/lib/atlas";
 import { BarRow, Kpi, Legend, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./ui";
 
-export default function Speed({ rows, agg, recs, violRows, onSelectDzo, onJump, onVehicle }: {
-  rows: DzoRow[]; agg: Agg; recs: Recommendation[]; violRows: ViolationRow[];
+export default function Speed({ rows, det, recs, onSelectDzo, onJump, onVehicle }: {
+  rows: DzoRow[]; det: ViolationsDetail | null; recs: Recommendation[];
   onSelectDzo: (orgId: string) => void; onJump: (page: string) => void;
   onVehicle: (id: string, name?: string, ts?: number) => void;
 }) {
-  const sev = severityBuckets(violRows);
+  // Серверные агрегаты (полные, до среза) — иначе KPI/тяжесть занижались усечением.
+  const sev = det?.severity ?? { s6: 0, s20: 0, s40: 0 };
+  const total = det?.total ?? 0;
   const kpis = [
-    { label: "Всего событий", value: ru(violRows.length || agg.episodes), color: C.ink },
+    { label: "Всего событий", value: det ? ru(total) : "…", color: C.ink },
     { label: "6–20 км/ч", value: ru(sev.s6), color: C.blue },
     { label: "20–40 км/ч", value: ru(sev.s20), color: C.amber },
     { label: "40+ км/ч", value: ru(sev.s40), color: C.red },
@@ -29,7 +31,7 @@ export default function Speed({ rows, agg, recs, violRows, onSelectDzo, onJump, 
   const topViolators = [...recs].sort((a, b) => b.episodes - a.episodes).slice(0, 8);
   const maxEp = Math.max(1, ...topViolators.map((r) => r.episodes));
 
-  const zones = zonesFromViol(violRows).slice(0, 8);
+  const zones = det?.zones ?? [];
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 12, alignContent: "start" }}>
@@ -90,17 +92,17 @@ export default function Speed({ rows, agg, recs, violRows, onSelectDzo, onJump, 
       <Panel span={5} title="Зоны с превышениями">
         {tableWrap(<>
           <thead><tr style={theadStyle}>
-            <Th>Геозона</Th><Th>Лимит</Th><Th right>Макс</Th><Th right>Событий</Th>
+            <Th>Геозона</Th><Th>Лимит</Th><Th right>Макс км/ч</Th><Th right>Событий</Th>
           </tr></thead>
           <tbody>
             {zones.length ? zones.map((z, i) => (
               <tr key={i} style={trRule}>
                 <Td bold>{z.name}</Td>
-                <Td color={C.muted}>{z.limit}</Td>
-                <Td right color={C.red} bold>+{z.max}</Td>
+                <Td color={C.muted}>{z.limit ? z.limit + " км/ч" : "—"}</Td>
+                <Td right color={C.red} bold>{ru(z.max, 1)}</Td>
                 <Td right>{ru(z.events)}</Td>
               </tr>
-            )) : <tr><Td color={C.faint}>Нет геозонных превышений за период</Td></tr>}
+            )) : <tr><Td color={C.faint}>{det ? "Нет геозонных превышений за период" : "Загрузка…"}</Td></tr>}
           </tbody>
         </>)}
       </Panel>

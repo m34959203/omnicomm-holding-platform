@@ -21,10 +21,11 @@ from omnicomm_report import speeding
 from . import raw_store
 
 _UTC = dt.timezone.utc
+_KZ = dt.timezone(dt.timedelta(hours=5))   # Казахстан UTC+5 — бакетируем месяцы локально (BUG-6)
 
 
 def _month(ts: int) -> str:
-    return dt.datetime.fromtimestamp(int(ts), _UTC).strftime("%Y-%m")
+    return dt.datetime.fromtimestamp(int(ts), _KZ).strftime("%Y-%m")
 
 
 def _parse_day(iso: Optional[str], fallback_ts: int) -> int:
@@ -38,8 +39,8 @@ def _parse_day(iso: Optional[str], fallback_ts: int) -> int:
 
 def _month_span(start_ts: int, end_ts: int) -> list[str]:
     """Список месяцев YYYY-MM от start до end включительно (по календарю)."""
-    a = dt.datetime.fromtimestamp(start_ts, _UTC).replace(day=1)
-    b = dt.datetime.fromtimestamp(end_ts, _UTC)
+    a = dt.datetime.fromtimestamp(start_ts, _KZ).replace(day=1)
+    b = dt.datetime.fromtimestamp(end_ts, _KZ)
     out: list[str] = []
     cur = a
     while cur <= b:

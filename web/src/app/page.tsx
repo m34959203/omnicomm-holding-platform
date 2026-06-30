@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation,
-  API, FuelDetail, Me, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail, ViolationsForm,
+  API, FuelDetail, Me, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail,
   excelUrl, getDashboard, getFuel, getFuelDetail, getGeozones, getJob, getMaintenance,
   getMe, getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail,
-  getViolationsForm, logout, startSync,
+  logout, startSync,
 } from "@/lib/api";
 import {
   Agg, C, DzoRow, FONT, aggregate, buildDzoRows, dzoNodes,
@@ -53,7 +53,6 @@ export default function Page() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [sensor, setSensor] = useState<SensorHealth | null>(null);
   const [maint, setMaint] = useState<Maintenance | null>(null);
-  const [violForm, setViolForm] = useState<ViolationsForm | null>(null);
   const [, setFuel] = useState<FuelForm | null>(null);
   const [vehicleOrg, setVehicleOrg] = useState<Record<string, string>>({});
   const [snaps, setSnaps] = useState<Meta[]>([]);
@@ -84,14 +83,14 @@ export default function Page() {
       if (!list.length) { setState("empty"); return; }
       const k = (key ?? periodKey) || undefined;
       const d = await getDashboard(k);
-      const [g, r, sh, mt, vf, fu] = await Promise.all([
+      const [g, r, sh, mt, fu] = await Promise.all([
         getGeozones(k), getRecommendations(k), getSensorHealth(k),
-        getMaintenance(k), getViolationsForm(k), getFuel(k),
+        getMaintenance(k), getFuel(k),
       ]);
       setDash(d); setGeos(g.geozones ?? []);
       setRecs(r.recommendations ?? []); setVehicleOrg(r.vehicle_org ?? {});
       setSensor(sh.sensor_health ?? null); setMaint(mt.maintenance ?? null);
-      setViolForm(vf.violations ?? null); setFuel(fu.fuel ?? null);
+      setFuel(fu.fuel ?? null);
       if (d.meta?.period_key) setPeriodKey(d.meta.period_key);
       setState("ready");
     } catch { setState("down"); }
@@ -200,15 +199,6 @@ export default function Page() {
   const recsS = useMemo(() => scopeRecs(recs, inScope), [recs, inScope]);
   const sensorS = useMemo(() => scopeSensor(sensor, inScope), [sensor, inScope]);
   const maintS = useMemo(() => scopeMaint(maint, inScope), [maint, inScope]);
-  const violRowsS = useMemo(
-    () => (violForm?.rows ?? []).filter((v) => inScope(v.vehicle_id))
-      .filter((v) => {
-        const e = v.excess_kmh ?? 0;
-        return e >= thr.minExcess && e <= thr.maxExcess;
-      }),
-    [violForm, inScope, thr],
-  );
-
   // vehicleId → org_id ВЕРХНЕЙ ДЗО (для группировки тренда «На ТС / Доля»).
   const vehTopDzo = useMemo(() => {
     const map: Record<string, string> = {};
@@ -315,7 +305,7 @@ export default function Page() {
               {page === "overview" && <Overview rows={rows} agg={agg} eco={dash?.economics ?? null} sensorCounts={sensorS?.counts ?? {}} overdueTotal={agg.overdue} onSelectDzo={toggle} onJump={onJump} />}
               {page === "money" && <Money rows={rows} agg={agg} eco={dash?.economics ?? null} overrunKzt={overrunKzt} overrunProvisional={!fuelDet?.norms_approved} onSelectDzo={toggle} onJump={onJump} />}
               {page === "fuel" && <Fuel data={fuelDet} loading={fuelDetLoading} inScope={inScope} dzoOf={dzoOf} fuelPrice={fuelPrice} onVehicle={onVehicle} />}
-              {page === "speed" && <Speed rows={rows} agg={agg} recs={recsS} violRows={violRowsS} onSelectDzo={toggle} onJump={onJump} onVehicle={onVehicle} />}
+              {page === "speed" && <Speed rows={rows} det={violDet} recs={recsS} onSelectDzo={toggle} onJump={onJump} onVehicle={onVehicle} />}
               {page === "violations" && <Violations data={violDet} loading={violDetLoading} inScope={inScope} onVehicle={onVehicle} />}
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
               {page === "quality" && <Quality rows={rows} sensor={sensorS} onSelectDzo={toggle} onVehicle={onVehicle} />}
