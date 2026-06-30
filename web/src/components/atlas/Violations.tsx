@@ -20,7 +20,7 @@ function durfmt(s: number): string {
 export default function Violations({ data, loading, inScope, onVehicle }: {
   data: ViolationsDetail | null; loading: boolean;
   inScope: (vehicleId: string) => boolean;
-  onVehicle: (id: string, name?: string) => void;
+  onVehicle: (id: string, name?: string, ts?: number) => void;
 }) {
   const [shown, setShown] = useState(PAGE);
 
@@ -48,7 +48,7 @@ export default function Violations({ data, loading, inScope, onVehicle }: {
           </tr></thead>
           <tbody>
             {view.length ? view.map((r, i) => (
-              <tr key={i} style={{ ...trRule, cursor: "pointer" }} onClick={() => onVehicle(r.vehicleId, r.vehicle)}>
+              <tr key={i} style={{ ...trRule, cursor: "pointer" }} onClick={() => onVehicle(r.vehicleId, r.vehicle, r.start_ts)}>
                 <Td color={C.muted}>{dtfmt(r.start_ts)}</Td>
                 <Td bold>{r.vehicle || r.vehicleId}</Td>
                 <Td color={C.muted}>{r.geozone}</Td>
