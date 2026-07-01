@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from datetime import datetime
 from typing import Any, Optional
 
 _SCHEMA = """
@@ -67,18 +68,40 @@ def load_snapshot(period_key: str, *, path: str = DEFAULT_PATH) -> Optional[dict
     return _row_to_snapshot(row, period_key)
 
 
+_VIEW_DAYS = 30   # штатное окно дашборда (совпадает с config.VIEW_WINDOW_DAYS)
+
+
+def _period_span_end(period_key: str) -> tuple[int, int]:
+    """(end_epoch_day, span_days) из ключа `YYYY-MM-DD_YYYY-MM-DD`; (0,0) если не разобрать."""
+    try:
+        a, b = period_key.split("_")
+        da = datetime.strptime(a, "%Y-%m-%d")
+        db = datetime.strptime(b, "%Y-%m-%d")
+        return int(db.timestamp() // 86400), max(1, (db - da).days)
+    except (ValueError, AttributeError):
+        return (0, 0)
+
+
 def latest_snapshot(*, path: str = DEFAULT_PATH) -> Optional[dict]:
-    """Самый свежий снапшот (по `synced_at`), или None — если кэш пуст."""
+    """Снапшот для ДЕФОЛТА дашборда: самый свежий по КОНЦУ периода (самые новые данные),
+    среди равных — длиной ближе к штатному окну (30 дн). НЕ «последний записанный по
+    synced_at» — иначе короткие backfill-снимки (2-дн исторические окна) перехватывали
+    бы дефолт и занижали число ТС/пустой fleet_table."""
     conn = _connect(path)
     try:
+        keys = conn.execute("SELECT period_key, synced_at FROM snapshot").fetchall()
+        if not keys:
+            return None
+        def score(r):
+            end, span = _period_span_end(r["period_key"])
+            return (end, -abs(span - _VIEW_DAYS), r["synced_at"])
+        best = max(keys, key=score)["period_key"]
         row = conn.execute(
-            "SELECT period_key, payload, synced_at, label FROM snapshot "
-            "ORDER BY synced_at DESC LIMIT 1").fetchone()
+            "SELECT period_key, payload, synced_at, label FROM snapshot WHERE period_key=?",
+            (best,)).fetchone()
     finally:
         conn.close()
-    if row is None:
-        return None
-    return _row_to_snapshot(row, row["period_key"])
+    return _row_to_snapshot(row, row["period_key"]) if row else None
 
 
 def list_snapshots(*, path: str = DEFAULT_PATH) -> list[dict]:
