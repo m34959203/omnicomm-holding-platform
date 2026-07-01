@@ -181,7 +181,8 @@ def _demo_violations(vehicles) -> dict:
 
 def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
                        raw_geozones, sensor_section, maint_section,
-                       fuel_price_kzt, progress, visits=None) -> dict:
+                       fuel_price_kzt, progress, visits=None,
+                       seed_accounts: bool = False) -> dict:
     """Собрать снапшот дашборда из готовых ТС/визитов (общий хвост для полного и
     инкрементального синка): роллапы KPI → экономика (вентиль доверия) →
     рекомендации СТ КАП → геозоны + секции качества данных и ТО."""
@@ -189,6 +190,19 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
     progress(80, "Расчёт KPI по иерархии")
     kpi_tree = rollup.build_org_kpi_tree(
         vehicles, tree, fuel_price_kzt=fuel_price_kzt, vehicle_org=vehicle_org)
+
+    if seed_accounts:
+        # Авто-сидинг учёток на НОВЫЕ каноничные узлы (второй слой синхронизации
+        # структуры). Идемпотентно/аддитивно; не должен ронять синк.
+        try:
+            from api import account_seed
+            new_accounts = account_seed.seed_new_accounts(kpi_tree)
+            if new_accounts:
+                progress(89, f"Заведено учёток на новые ДЗО: {len(new_accounts)} "
+                             f"({', '.join(a['login'] for a in new_accounts[:5])}"
+                             f"{'…' if len(new_accounts) > 5 else ''})")
+        except Exception:  # noqa: BLE001 — сидинг не критичен для снапшота
+            pass
 
     progress(88, "Экономика и рекомендации")
     from omnicomm_report import dashboard
@@ -363,7 +377,8 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
         vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=view,
         violations=violations, raw_geozones=raw_geozones,
         sensor_section=sensor_section, maint_section=maint_section,
-        fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits)
+        fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits,
+        seed_accounts=True)
     synced_at = cache.save_snapshot(snapshot, period_key=pkey, label=view.human(),
                                     path=cache_path)
     progress(100, "Снимок обновлён (инкрементально)")
@@ -463,7 +478,8 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=period,
         violations=violations, raw_geozones=raw_geozones,
         sensor_section=sensor_section, maint_section=maint_section,
-        fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits)
+        fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits,
+        seed_accounts=not demo)   # авто-сидинг учёток только на боевом дереве
     synced_at = cache.save_snapshot(snapshot, period_key=pkey,
                                     label=period.human(), path=cache_path)
     progress(100, "Снапшот сохранён")
