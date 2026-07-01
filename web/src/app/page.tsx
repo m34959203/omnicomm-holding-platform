@@ -49,6 +49,20 @@ function bucketOf(days: number): string {
   return "Квартал";
 }
 
+// Лестница быстрых диапазонов: любой собирается из архива на лету (без Omnicomm),
+// частые окна пред-прогреты синком → отдаются мгновенно.
+const RANGE_PICKS: { name: string; days: number }[] = [
+  { name: "Сутки", days: 1 }, { name: "Неделя", days: 7 },
+  { name: "Месяц", days: 30 }, { name: "Квартал", days: 90 },
+  { name: "Полгода", days: 180 }, { name: "Год", days: 365 },
+];
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+// Трейлинг-ключ period_key за N суток (совпадает с _period_key на бэкенде: даты UTC).
+function trailingKey(days: number): string {
+  const now = Date.now();
+  return `${isoDay(now - days * 86400000)}_${isoDay(now)}`;
+}
+
 export default function Page() {
   const [dash, setDash] = useState<Dashboard | null>(null);
   const [geos, setGeos] = useState<GeoFeature[]>([]);
@@ -60,6 +74,7 @@ export default function Page() {
   const [snaps, setSnaps] = useState<Meta[]>([]);
   const [periodKey, setPeriodKey] = useState<string>("");
   const [state, setState] = useState<"loading" | "ready" | "empty" | "down">("loading");
+  const [refreshing, setRefreshing] = useState(false);
 
   const [me, setMe] = useState<Me | null>(null);
   const [auth, setAuth] = useState<"checking" | "anon" | "in">("checking");
@@ -79,6 +94,7 @@ export default function Page() {
   const [fuelDetLoading, setFuelDetLoading] = useState(false);
 
   const load = useCallback(async (key?: string) => {
+    setRefreshing(true);
     try {
       const list = await getSnapshots();
       setSnaps(list);
@@ -96,6 +112,7 @@ export default function Page() {
       if (d.meta?.period_key) setPeriodKey(d.meta.period_key);
       setState("ready");
     } catch { setState("down"); }
+    finally { setRefreshing(false); }
   }, [periodKey]);
 
   // Сначала проверяем сессию; данные грузим только после входа.
@@ -240,20 +257,21 @@ export default function Page() {
   );
   const totalCount = sensorS?.terminals.length ?? 0;
 
-  // пилюли периода
-  const periods: Period[] = useMemo(() => {
-    const order = ["Сутки", "Неделя", "Месяц", "Квартал"];
-    const pick: Record<string, string | undefined> = {};
-    for (const s of snaps) { const b = bucketOf(snapDays(s.period_key)); if (!pick[b]) pick[b] = s.period_key; }
-    return order.map((name) => {
-      const key = pick[name];
-      return {
-        key: name, name, disabled: !key,
-        active: !!key && key === periodKey,
-        onClick: () => { if (key && key !== periodKey) { setPeriodKey(key); load(key); } },
-      };
-    });
-  }, [snaps, periodKey, load]);
+  // Показать произвольный диапазон: ставим period_key, грузим (бэкенд соберёт из
+  // архива, если снимка ещё нет — первый заход ~3с, дальше мгновенно из кэша).
+  const onRange = useCallback((key: string) => {
+    if (key && key !== periodKey) { setPeriodKey(key); load(key); }
+  }, [periodKey, load]);
+
+  // пилюли периода — лестница трейлинг-диапазонов (любой доступен, собирается из архива)
+  const periods: Period[] = useMemo(() => RANGE_PICKS.map(({ name, days }) => {
+    const key = trailingKey(days);
+    return {
+      key: name, name, disabled: false,
+      active: key === periodKey || bucketOf(snapDays(periodKey || "")) === name,
+      onClick: () => onRange(key),
+    };
+  }), [periodKey, onRange]);
 
   const toggle = (id: string) => setSelected((s) => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n;
@@ -302,7 +320,7 @@ export default function Page() {
       <Ribbon
         title="Автопарк КАП — аналитика" subtitle="Omnicomm Holding · отчёт"
         snapshot={snapLabel} periods={periods} excelHref={excelUrl(periodKey || undefined)}
-        onSync={onSync} syncing={syncing}
+        onSync={onSync} syncing={syncing} refreshing={refreshing} onRange={onRange}
         user={me?.username} scope={me?.org_name} onLogout={onLogout}
         accountsHref={(me && (me.role === "admin" || !me.org_id)) ? `${API}/api/accounts` : undefined}
       />

@@ -182,7 +182,8 @@ def _demo_violations(vehicles) -> dict:
 def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
                        raw_geozones, sensor_section, maint_section,
                        fuel_price_kzt, progress, visits=None,
-                       seed_accounts: bool = False) -> dict:
+                       seed_accounts: bool = False,
+                       geozones_override=None) -> dict:
     """Собрать снапшот дашборда из готовых ТС/визитов (общий хвост для полного и
     инкрементального синка): роллапы KPI → экономика (вентиль доверия) →
     рекомендации СТ КАП → геозоны + секции качества данных и ТО."""
@@ -249,7 +250,10 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
         "economics_by_org": eco_by_org,
         "recommendations": [serialize.recommendation_dict(r) for r in recs],
         "vehicle_org": dict(vehicle_org),
-        "geozones": serialize.geozone_features_json(raw_geozones),
+        # Геометрия геозон от периода не зависит — в range-сборке переиспользуем
+        # готовые фичи из базового снимка (geozones_override), не сериализуя заново.
+        "geozones": (geozones_override if geozones_override is not None
+                     else serialize.geozone_features_json(raw_geozones)),
         "sensor_health": sensor_section,
         "maintenance": maint_section,
         # Отчётные формы паритета (kb-14): данные уже на руках.
@@ -260,6 +264,102 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
             violations, vehicles, {str(v.vehicle_id): v.name for v in vehicles}),
         "fuel": reports.build_fuel(vehicles),
     }
+
+
+# --- Произвольный диапазон из АРХИВА (без Omnicomm) -------------------------------
+
+RANGE_MAX_DAYS = 400   # защитный потолок (архив ≈ год)
+
+
+def _reconstruct_base(base: dict):
+    """Восстановить OrgTree + vehicle_org + name_map из готового снимка — для сборки
+    произвольного диапазона из архива БЕЗ обращения в Omnicomm (структура/имена ТС
+    от периода не зависят, берём из последнего снимка)."""
+    orgs = []
+
+    def walk(node, parent_id):
+        oid = str(node.get("org_id"))
+        try:
+            lvl = org_mod.OrgLevel(node.get("level") or "unknown")
+        except ValueError:
+            lvl = org_mod.OrgLevel.UNKNOWN
+        orgs.append(org_mod.Org(org_id=oid, name=node.get("name") or "",
+                                parent_id=(str(parent_id) if parent_id else None),
+                                level=lvl, type=org_mod.OrgType.OWN))
+        for ch in node.get("children") or []:
+            walk(ch, oid)
+
+    for root in base.get("orgs") or []:
+        walk(root, None)
+    tree = org_mod.OrgTree(orgs)
+    vehicle_org = {str(k): str(v) for k, v in (base.get("vehicle_org") or {}).items()}
+    name_map = {str(r.get("vehicle_id")): r.get("vehicle")
+                for r in ((base.get("fleet_table") or {}).get("rows") or [])
+                if r.get("vehicle_id")}
+    return tree, vehicle_org, name_map
+
+
+def build_range_snapshot(start_ts: int, end_ts: int, *,
+                         cache_path: str = cache.DEFAULT_PATH,
+                         raw_path: str = None,
+                         fuel_price_kzt: float = 0.0,
+                         progress: ProgressCb = None) -> Optional[dict]:
+    """Собрать снимок за ПРОИЗВОЛЬНЫЙ диапазон из ЛОКАЛЬНОГО архива — без единого
+    обращения в Omnicomm. Период-зависимые секции (KPI/экономика/нарушения/топливо/
+    таблицы) считаются из `raw_store`; секции текущего состояния (геометрия геозон,
+    Sensor Health, Контроль ТО) переиспользуются из последнего снимка. Кэшируется по
+    period_key. Возвращает `{period_key, synced_at, label}` или None (нет базы/данных)."""
+    from . import raw_store
+    progress = progress or (lambda *_: None)
+    raw_path = raw_path or raw_store.DEFAULT_PATH
+    base = cache.latest_snapshot(path=cache_path)
+    if not base:
+        return None
+    period = ReportPeriod(start=datetime.fromtimestamp(start_ts, timezone.utc),
+                          end=datetime.fromtimestamp(end_ts, timezone.utc))
+    pkey = _period_key(period)
+    progress(20, "Сборка диапазона из архива")
+    tree, vehicle_org, name_map = _reconstruct_base(base)
+    records = raw_store.load_daily(start_ts, end_ts, raw_path)
+    vehicles = validator.validate(data_loader._aggregate_consolidated(records, name_map))
+    if not vehicles:
+        return None
+    visits = raw_store.load_visits(start_ts, end_ts, raw_path)
+    violations = speeding.detect_from_visits(visits, seed=None)
+    snap = _assemble_snapshot(
+        vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=period,
+        violations=violations, raw_geozones=None,
+        geozones_override=base.get("geozones"),
+        sensor_section=base.get("sensor_health"), maint_section=base.get("maintenance"),
+        fuel_price_kzt=fuel_price_kzt or config.DEFAULT_FUEL_PRICE_KZT,
+        progress=lambda *_: None, visits=visits, seed_accounts=False)
+    synced_at = cache.save_snapshot(snap, period_key=pkey, label=period.human(),
+                                    path=cache_path)
+    progress(100, "Диапазон готов")
+    return {"period_key": pkey, "synced_at": synced_at, "label": period.human()}
+
+
+def prewarm_ranges(day_list, *, cache_path: str = cache.DEFAULT_PATH,
+                   raw_path: str = None, now: int = None) -> list[str]:
+    """Пред-прогреть трейлинг-окна (в сутках) из архива, чтобы частые периоды
+    отдавались мгновенно. Уже закэшированные ключи пропускаются. Возвращает список
+    собранных period_key."""
+    now = now or int(time.time())
+    existing = {s["period_key"] for s in cache.list_snapshots(path=cache_path)}
+    done = []
+    for d in day_list:
+        period = ReportPeriod(start=datetime.fromtimestamp(now - d * 86400, timezone.utc),
+                              end=datetime.fromtimestamp(now, timezone.utc))
+        if _period_key(period) in existing:
+            continue
+        try:
+            r = build_range_snapshot(now - d * 86400, now,
+                                     cache_path=cache_path, raw_path=raw_path)
+            if r:
+                done.append(r["period_key"])
+        except Exception:  # noqa: BLE001 — прогрев не критичен
+            pass
+    return done
 
 
 def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
@@ -381,6 +481,15 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
         seed_accounts=True)
     synced_at = cache.save_snapshot(snapshot, period_key=pkey, label=view.human(),
                                     path=cache_path)
+    # Пред-прогрев частых окон из архива (неделя/квартал/полгода) — чтобы пилюли
+    # периода отдавались мгновенно. Дёшево (сборка из store, без Omnicomm).
+    try:
+        warmed = prewarm_ranges([7, 90, 180], cache_path=cache_path,
+                                raw_path=raw_path, now=now)
+        if warmed:
+            progress(99, f"Прогрев окон: {', '.join(warmed)}")
+    except Exception:  # noqa: BLE001
+        pass
     progress(100, "Снимок обновлён (инкрементально)")
     cov = raw_store.coverage(raw_path)
     return {"period_key": pkey, "synced_at": synced_at, "ingested": len(new_daily),

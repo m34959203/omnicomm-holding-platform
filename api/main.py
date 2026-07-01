@@ -18,7 +18,9 @@ import asyncio
 import json
 import os
 import re
+import threading
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -296,8 +298,44 @@ def _require_viewer(request: Request) -> dict:
     return v
 
 
+_RANGE_KEY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$")
+_range_locks: dict[str, threading.Lock] = {}
+_range_locks_guard = threading.Lock()
+
+
+def _ensure_range_snapshot(period_key: str) -> bool:
+    """Снимок за ПРОИЗВОЛЬНЫЙ диапазон: если его нет в кэше — собрать из локального
+    архива (без Omnicomm), single-flight по ключу. Возвращает True, если снимок
+    доступен (был или собран). Первый заход ~2–4с, дальше мгновенно из кэша."""
+    if cache.load_snapshot(period_key) is not None:
+        return True
+    m = _RANGE_KEY_RE.match(period_key or "")
+    if not m:
+        return False
+    try:
+        sd = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        ed = datetime.strptime(m.group(2), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    start_ts, end_ts = int(sd.timestamp()), int(ed.timestamp()) + 86399  # конец дня вкл.
+    days = (end_ts - start_ts) / 86400
+    if days < 1 or days > sync.RANGE_MAX_DAYS:
+        return False
+    with _range_locks_guard:
+        lock = _range_locks.setdefault(period_key, threading.Lock())
+    with lock:                                    # single-flight: 8 табов ждут одну сборку
+        if cache.load_snapshot(period_key) is not None:
+            return True
+        try:
+            return sync.build_range_snapshot(start_ts, end_ts) is not None
+        except Exception:  # noqa: BLE001 — сборка диапазона не должна ронять чтение
+            return False
+
+
 def _snapshot(period_key: Optional[str], request: Request) -> dict:
     v = _require_viewer(request)
+    if period_key:
+        _ensure_range_snapshot(period_key)        # собрать из архива, если ещё нет
     snap = (cache.load_snapshot(period_key) if period_key
             else cache.latest_snapshot())
     if snap is None:
