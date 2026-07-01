@@ -79,7 +79,17 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
   - `GET /api/geozones`, `/api/recommendations`, `/api/sensor-health`, `/api/maintenance` — секции снапшота.
   - `GET /api/dashboard.xlsx` — Excel-выгрузка дашборда.
   - `GET /api/vehicle/{id}` — карточка ТС (трек); `GET /api/vehicle/{id}/telemetry` — телеметрия.
+- **Произвольный диапазон мгновенно (Фаза A):** любой `period_key` формата `YYYY-MM-DD_YYYY-MM-DD`,
+  которого нет в кэше, собирается **из локального архива без Omnicomm** — `_ensure_range_snapshot`
+  в `_snapshot` (single-flight по ключу; первый заход ~3с, дальше ~25мс из кэша). Фронт: пилюли
+  Сутки/Неделя/Месяц/Квартал/Полгода/Год (вычисляемые трейлинг-ключи) + произвольный календарь.
+  Полный забор из Omnicomm — только отдельная кнопка «↻ обновить» (`POST /api/sync`). **Фазу B
+  (дневной куб) НЕ делать** — отклонена как маргинальная (см. NOTES 01.07).
 - `sync.py` — оркестрация синка → снапшот: geozones → speeding → recommendations, sensor health, maintenance.
+  - `build_range_snapshot(start,end)` — снимок за ЛЮБОЙ диапазон из архива (0 обращений в Omnicomm):
+    период-зависимое считается из `raw_store`, секции текущего состояния (геозоны/Sensor Health/ТО)
+    переиспускаются из последнего снимка (`_reconstruct_base`, `_assemble_snapshot(geozones_override=)`).
+  - `prewarm_ranges([дни])` — пред-прогрев частых окон (вызывается в конце инкрем-синка на `[7,90,180]`).
 - `cache.py` — снапшот-кэш SQLite (чтения дашборда **не** ходят в Omnicomm).
 - `jobs.py` — фоновые задачи + single-flight (без дублирующих синков).
 - `fetch.py` — параллельный забор из Omnicomm; `serialize.py` — сериализация снапшота.
