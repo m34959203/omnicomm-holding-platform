@@ -53,6 +53,7 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
 
 ## Omnicomm API (критично, сверено с api.yaml + проверено на демо/боевом)
 
+- **ПРАВИЛО: перед НОВЫМ запросом/эндпоинтом — СНАЧАЛА читать доку** (`api.yaml`, `docs/api.md`, `docs/api-appendix.md`, `docs/knowledge-base/`, мануал `download/omnicomm_online-manual-ru.pdf`), НЕ перебирать URL вслепую (шум + бьёт по хрупкой копе). Эмпирическая проба — только когда дока молчит, и бережно.
 - Заголовок строго `Authorization: JWT <token>` (пробел!). Для доступа к отчётам нужен `service` (напр. `omnicomm`) + права у учётки.
 - **Отчёты вызываются POST, не GET.** Сводный: `POST /ls/api/v1/reports/consolidatedReport`,
   тело `{"vehicleIds":[<terminal_id int>],"timeBegin":<unix>,"timeEnd":<unix>}`. Лимиты **≤50 ТС / ≤31 дня** — батчинг и нарезка периода в `api_client._report_post`.
