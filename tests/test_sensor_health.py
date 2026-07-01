@@ -10,11 +10,20 @@ NOW = 1_782_000_000  # фикс. «сейчас» (epoch сек)
 
 def test_classify_online_stale_offline_unknown():
     assert sh.classify_terminal(NOW - 60, NOW) is TerminalStatus.ONLINE
-    # > 60 мин → STALE
+    # > 30 мин → STALE
     assert sh.classify_terminal(NOW - 2 * 3600, NOW) is TerminalStatus.STALE
     # > 24 ч → OFFLINE
     assert sh.classify_terminal(NOW - 48 * 3600, NOW) is TerminalStatus.OFFLINE
     assert sh.classify_terminal(None, NOW) is TerminalStatus.UNKNOWN
+
+
+def test_classify_data_quality_bands():
+    # Шкала качества данных: 🟢 ≤30мин · 🟠 30мин–24ч · 🔴 >24ч · ⚪ нет данных
+    assert sh.classify_terminal(NOW - 25 * 60, NOW) is TerminalStatus.ONLINE     # 25 мин → зелёный
+    assert sh.classify_terminal(NOW - 35 * 60, NOW) is TerminalStatus.STALE      # 35 мин → оранжевый
+    assert sh.classify_terminal(NOW - 23 * 3600, NOW) is TerminalStatus.STALE    # 23 ч → оранжевый
+    assert sh.classify_terminal(NOW - 25 * 3600, NOW) is TerminalStatus.OFFLINE  # 25 ч → красный
+    assert sh.classify_terminal(None, NOW) is TerminalStatus.UNKNOWN             # нет данных → серый
 
 
 def test_classify_custom_thresholds():

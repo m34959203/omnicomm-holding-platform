@@ -5,7 +5,10 @@ import { BarRow, Gauge, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./u
 import { ago } from "@/lib/format";
 
 const STATUS_LABEL: Record<string, string> = {
-  online: "Онлайн", stale: "Молчит < суток", offline: "Офлайн", unknown: "Неизвестно",
+  online: "Данные < 30 мин",
+  stale: "Данные 30 мин – 24 ч",
+  offline: "Нет данных > 24 ч",
+  unknown: "Нет данных в программе",
 };
 const STATUS_COLOR: Record<string, string> = {
   online: C.green, stale: C.amber, offline: C.red, unknown: C.faint2,
@@ -36,9 +39,9 @@ export default function Quality({ rows, sensor, onSelectDzo, onVehicle }: {
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 12, alignContent: "start" }}>
-      <Panel span={4} title="Sensor Health">
+      <Panel span={4} title="Качество данных" right="% ТС с данными < 30 мин">
         <div style={{ padding: "14px 0 6px" }}>
-          <Gauge pct={okPct} size={120} sub={`${ru(counts.online ?? 0)} из ${ru(total)} онлайн · уровень ${sensor?.level ?? "—"}`} />
+          <Gauge pct={okPct} size={120} sub={`${ru(counts.online ?? 0)} из ${ru(total)} с данными < 30 мин`} />
         </div>
       </Panel>
 
