@@ -31,7 +31,7 @@ def test_list_geozones_paginates_all_pages():
 
     c = _client()
     c._request = fake_request
-    rows = c.list_geozones()
+    rows = c.list_geozones(page_size=200)        # явно мелкая страница — проверяем ЦИКЛ
     assert len(rows) == 401                      # ВСЕ, не 200
     assert calls == [1, 2, 3]                     # три страницы
     assert len({r["id"] for r in rows}) == 401    # без дублей
@@ -48,6 +48,26 @@ def test_list_geozones_dedups_by_id():
     c._request = fake_request
     rows = c.list_geozones()
     assert sorted(r["id"] for r in rows) == [1, 2, 3]   # дубль id=2 схлопнут
+
+
+def test_list_geozones_default_one_request():
+    # 401 геозона при дефолтном page_size=1000 → ОДИН запрос (не 3×200).
+    total = 401
+    all_rows = [{"id": i} for i in range(total)]
+    calls = []
+
+    def fake_request(method, key, *, params=None, **kw):
+        page, size = params["page"], params["pageSize"]
+        calls.append((page, size))
+        start = (page - 1) * size
+        return {"total": total, "page": page, "pageSize": size,
+                "rows": all_rows[start:start + size]}
+
+    c = _client()
+    c._request = fake_request
+    rows = c.list_geozones()                      # дефолт 1000
+    assert len(rows) == 401
+    assert calls == [(1, 1000)]                    # ровно один запрос
 
 
 def test_list_geozones_single_page():

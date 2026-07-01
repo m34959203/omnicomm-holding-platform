@@ -528,12 +528,14 @@ class OmnicommClient:
             return rows if isinstance(rows, list) else []
         return _as_list(data)
 
-    def list_geozones(self, *, page_size: int = 200) -> list[dict]:
+    def list_geozones(self, *, page_size: int = 1000) -> list[dict]:
         """Геозоны клиента: GET /api/service/geozones/geozones (rows[]).
 
         Ответ ПАГИНИРОВАН (`{total,page,pageSize,rows}`) — тянем ВСЕ страницы, иначе
         берётся лишь первая (напр. 200 из 401, включая внутренние геозоны ДЗО).
-        Дедуп по id/uuid; страховочный кап на число страниц."""
+        `page_size=1000` = один запрос на весь набор (сервер отдаёт до 1000/стр,
+        `pageSize=5000` уже режет 400); цикл остаётся страховкой на случай >1000.
+        Дедуп по id/uuid; кап на число страниц."""
         first = self._request("GET", "geozones_list",
                                params={"page": 1, "pageSize": page_size})
         if not isinstance(first, dict):
