@@ -99,16 +99,24 @@ def build_violations_detail(
     # занижались усечением rows[:CAP] (BUG-1). Тяжесть — по величине превышения.
     severity = {"s6": 0, "s20": 0, "s40": 0}
     zmap: dict = {}
+    vmap: dict = {}   # ТС → счётчики по корзинам тяжести (для дрилла клика по «Тяжести»)
     for r in rows:
         e = r["excess_kmh"]
-        if e >= 40: severity["s40"] += 1
-        elif e >= 20: severity["s20"] += 1
-        else: severity["s6"] += 1
+        bucket = "s40" if e >= 40 else "s20" if e >= 20 else "s6"
+        severity[bucket] += 1
         z = zmap.setdefault(r["geozone"], {"name": r["geozone"], "limit": r["limit_kmh"],
                                            "max": 0.0, "events": 0})
         z["events"] += 1
         z["max"] = max(z["max"], r["max_speed_kmh"])   # АБСОЛЮТНАЯ макс. скорость (BUG-4)
+        vm = vmap.setdefault(r["vehicleId"], {
+            "vehicleId": r["vehicleId"], "vehicle": r["vehicle"],
+            "s6": 0, "s20": 0, "s40": 0, "total": 0, "max_excess": 0.0})
+        vm[bucket] += 1
+        vm["total"] += 1
+        vm["max_excess"] = max(vm["max_excess"], e)
     zones = sorted(zmap.values(), key=lambda z: z["events"], reverse=True)[:12]
+    # Список ТС по корзинам тяжести (точный, до среза rows) — для клика по «Тяжести».
+    by_vehicle = sorted(vmap.values(), key=lambda v: (v["s40"], v["s20"], v["total"]), reverse=True)
 
     rows.sort(key=lambda r: (r["avg_speed_kmh"] if r["avg_speed_kmh"] is not None else r["max_speed_kmh"]), reverse=True)
     return {
@@ -117,6 +125,7 @@ def build_violations_detail(
         "returned": min(total, CAP),
         "capped": total > CAP,
         "severity": severity,
+        "by_vehicle": by_vehicle,
         "zones": zones,
         "from": dt.datetime.fromtimestamp(start_ts, _UTC).strftime("%Y-%m-%d"),
         "to": dt.datetime.fromtimestamp(end_ts, _UTC).strftime("%Y-%m-%d"),

@@ -1,13 +1,17 @@
 "use client";
+import { useState } from "react";
 import { Recommendation, ViolationsDetail } from "@/lib/api";
 import { C, DzoRow, ru } from "@/lib/atlas";
 import { BarRow, Kpi, Legend, Panel, Td, Th, tableWrap, theadStyle, trRule } from "./ui";
+
+type SevKey = "s6" | "s20" | "s40";
 
 export default function Speed({ rows, det, recs, onSelectDzo, onJump, onVehicle }: {
   rows: DzoRow[]; det: ViolationsDetail | null; recs: Recommendation[];
   onSelectDzo: (orgId: string) => void; onJump: (page: string) => void;
   onVehicle: (id: string, name?: string, ts?: number) => void;
 }) {
+  const [sevDrill, setSevDrill] = useState<SevKey | null>(null);
   // Серверные агрегаты (полные, до среза) — иначе KPI/тяжесть занижались усечением.
   const sev = det?.severity ?? { s6: 0, s20: 0, s40: 0 };
   const total = det?.total ?? 0;
@@ -22,11 +26,15 @@ export default function Speed({ rows, det, recs, onSelectDzo, onJump, onVehicle 
   const maxViol = Math.max(1, ...byViol.map((r) => r.episodes));
 
   const maxSev = Math.max(1, sev.s6, sev.s20, sev.s40);
-  const sevBars = [
-    { label: "6–20", val: sev.s6, h: sev.s6 / maxSev * 100, color: C.blue },
-    { label: "20–40", val: sev.s20, h: sev.s20 / maxSev * 100, color: C.amber },
-    { label: "40+", val: sev.s40, h: sev.s40 / maxSev * 100, color: C.red },
+  const sevBars: { k: SevKey; label: string; val: number; h: number; color: string }[] = [
+    { k: "s6", label: "6–20", val: sev.s6, h: sev.s6 / maxSev * 100, color: C.blue },
+    { k: "s20", label: "20–40", val: sev.s20, h: sev.s20 / maxSev * 100, color: C.amber },
+    { k: "s40", label: "40+", val: sev.s40, h: sev.s40 / maxSev * 100, color: C.red },
   ];
+  const sevLabel: Record<SevKey, string> = { s6: "6–20", s20: "20–40", s40: "40+" };
+  const drillRows = sevDrill
+    ? (det?.by_vehicle ?? []).filter((v) => v[sevDrill] > 0).sort((a, b) => b[sevDrill] - a[sevDrill])
+    : [];
 
   const topViolators = [...recs].sort((a, b) => b.episodes - a.episodes).slice(0, 8);
   const maxEp = Math.max(1, ...topViolators.map((r) => r.episodes));
@@ -58,19 +66,45 @@ export default function Speed({ rows, det, recs, onSelectDzo, onJump, onVehicle 
         <Legend items={[{ color: C.red, label: "дороги общего пользования (КоАП)" }, { color: C.blueSoft, label: "технодороги (СТ КАП)" }]} />
       </Panel>
 
-      <Panel span={3} title="Тяжесть">
+      <Panel span={3} title="Тяжесть" right="клик — список ТС">
         <div style={{ display: "flex", gap: 12, alignItems: "flex-end", height: 150 }}>
-          {sevBars.map((s, i) => (
-            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
-              <div className="num" style={{ fontSize: 13, fontWeight: 700 }}>{ru(s.val)}</div>
-              <div style={{ width: "100%", flex: 1, display: "flex", alignItems: "flex-end" }}>
-                <div style={{ width: "100%", height: `${Math.min(100, s.h)}%`, background: s.color, borderRadius: "2px 2px 0 0" }} />
+          {sevBars.map((s) => {
+            const active = sevDrill === s.k;
+            return (
+              <div key={s.k} onClick={() => setSevDrill(active ? null : s.k)} title={`Показать ТС с превышением ${s.label} км/ч`}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%", cursor: "pointer" }}>
+                <div className="num" style={{ fontSize: 13, fontWeight: 700, color: active ? s.color : C.ink }}>{ru(s.val)}</div>
+                <div style={{ width: "100%", flex: 1, display: "flex", alignItems: "flex-end" }}>
+                  <div style={{ width: "100%", height: `${Math.min(100, s.h)}%`, background: s.color, borderRadius: "2px 2px 0 0", opacity: sevDrill && !active ? 0.4 : 1, outline: active ? `2px solid ${s.color}` : "none", outlineOffset: 1 }} />
+                </div>
+                <div style={{ fontSize: 10, color: active ? s.color : C.faint, fontWeight: active ? 700 : 400 }}>{s.label}</div>
               </div>
-              <div style={{ fontSize: 10, color: C.faint }}>{s.label}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Panel>
+
+      {sevDrill && (
+        <Panel span={12} title={`ТС с превышением ${sevLabel[sevDrill]} км/ч`}
+          right={<span>{ru(drillRows.reduce((s, v) => s + v[sevDrill], 0))} нарушений · {ru(drillRows.length)} ТС · <span style={{ cursor: "pointer", color: C.blue }} onClick={() => setSevDrill(null)}>закрыть ✕</span></span>}>
+          {drillRows.length ? tableWrap(<>
+            <thead><tr style={theadStyle}>
+              <Th>ТС</Th><Th right>Нарушений {sevLabel[sevDrill]}</Th>
+              <Th right>Макс. превышение</Th><Th right>Всего эпизодов</Th>
+            </tr></thead>
+            <tbody>
+              {drillRows.map((v) => (
+                <tr key={v.vehicleId} style={{ ...trRule, cursor: "pointer" }} onClick={() => onVehicle(v.vehicleId, v.vehicle)}>
+                  <Td bold>{v.vehicle || v.vehicleId}</Td>
+                  <Td right color={C.red} bold>{ru(v[sevDrill])}</Td>
+                  <Td right>+{ru(v.max_excess, 1)} км/ч</Td>
+                  <Td right color={C.muted}>{ru(v.total)}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </>) : <div style={{ fontSize: 11.5, color: C.faint }}>Нет ТС в этой корзине за период</div>}
+        </Panel>
+      )}
 
       <Panel span={3} title="КоАП ст.592">
         <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55 }}>

@@ -335,9 +335,14 @@ export interface ViolationDetailRow {
   koap_article: string | null; fine_kzt: number | null;
 }
 export interface ViolZone { name: string; limit: number | null; max: number; events: number }
+export interface SevVehicle {
+  vehicleId: string; vehicle: string; s6: number; s20: number; s40: number;
+  total: number; max_excess: number;
+}
 export interface ViolationsDetail {
   rows: ViolationDetailRow[]; total: number; returned: number; capped: boolean;
   severity: { s6: number; s20: number; s40: number };
+  by_vehicle: SevVehicle[];
   zones: ViolZone[];
   from: string; to: string; source: string;
   params: { minDurationSec: number; minExcess: number; maxExcess: number };
