@@ -62,6 +62,7 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
 - **ЕДИНИЦЫ (частый баг ×10):** топливо (`fuelConsumption`, `*WOMovement`, `univInputOnConsumption`, `fuelCons*`) — в **децилитрах → /10 = литры**; время — секунды → /3600; `deviation` — сл /100; `univInputHourConsumption` по факту дл (не доверять, считать из тоталов). Приведение в `data_loader._aggregate_consolidated` (Excel уже в литрах).
 - Коды ошибок 0–15 — `config.OMNICOMM_ERRORS`. **Коды 5/7/9/10/11 НЕ прерывают отчёт** — ТС `has_data=False`.
 - GPS: `GET /ls/api/v1/reports/track/{terminal_id}?timeBegin&timeEnd` → точки `{lat,lon,speed,satellitesCount}`.
+- **Геозоны ПАГИНИРОВАНЫ:** `GET /api/service/geozones/geozones` → `{total,page,pageSize,rows}`. `list_geozones` тянет ВСЕ страницы (`pageSize=1000` = один запрос; `5000` сервер режет 400) + дедуп по id — иначе бралась 1-я страница (200 из 401, терялись внутренние геозоны ДЗО). **Лимит скорости и ТИП ТС зашиты в ИМЯ** (геозона «…50 км/ч», ТС «…Самосвал»), структурных полей нет; per-type×geozone лимит Omnicomm держит в профилях→событиях (на `projectkap` события пусты). Аудит — `docs/audit-vehicle-type-speed-limit.md`.
 - **Rate-limit: 180 запросов/мин НА АККАУНТ** (не на клиент/поток). Параллельный синк держит много `OmnicommClient` на одной учётке → нужен общий лимитер (`rate_limit.get_limiter`, ёмкость ≤170/мин с запасом), иначе 429.
 - **Текущее состояние ТС: `api_client.get_vehicle_state` → `GET /ls/api/v1/vehicles/{id}/state`** даёт `voltage` (**НАПРЯЖЕНИЕ БОРТСЕТИ**), адрес, зажигание, текущие скорость/топливо. **ВАЖНО: voltage НЕ приходит в `consolidatedReport`** — только в `/state`.
 - **На `projectkap` события `GET /ls/api/v1/reports/events/{id}` приходят пустыми** — не строить на них логику для этого аккаунта.
@@ -91,7 +92,8 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
     период-зависимое считается из `raw_store`, секции текущего состояния (геозоны/Sensor Health/ТО)
     переиспускаются из последнего снимка (`_reconstruct_base`, `_assemble_snapshot(geozones_override=)`).
   - `prewarm_ranges([дни])` — пред-прогрев частых окон (вызывается в конце инкрем-синка на `[7,90,180]`).
-- `cache.py` — снапшот-кэш SQLite (чтения дашборда **не** ходят в Omnicomm).
+- `cache.py` — снапшот-кэш SQLite (чтения дашборда **не** ходят в Omnicomm). **`latest_snapshot` = дефолт дашборда: снимок со СВЕЖАЙШИМ концом периода (среди равных — длиной ближе к 30-дн окну), НЕ последний-по-`synced_at`** — иначе короткие backfill-окна (2-дн) перехватывали бы дефолт и занижали ТС/пустой fleet_table. Счётчик ТС в шапке = `dash.fleet.vehicles`. Число ТС растёт органически (КАП заводит терминалы).
+- **Качество данных (светофор):** `TERMINAL_STALE_AFTER_MIN=30`, `TERMINAL_OFFLINE_AFTER_HOURS=24` → 🟢 ≤30 мин · 🟠 30 мин–24 ч · 🔴 >24 ч · ⚪ нет данных. Общий % = `online/total`.
 - `jobs.py` — фоновые задачи + single-flight (без дублирующих синков).
 - `fetch.py` — параллельный забор из Omnicomm; `serialize.py` — сериализация снапшота.
 - `health.py` — секции Sensor Health и Контроль ТО; `excel.py` — Excel-выгрузка.
