@@ -1,17 +1,22 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { C, FONT } from "@/lib/atlas";
 
 export interface Period { key: string; name: string; active: boolean; disabled: boolean; onClick: () => void }
 
-export default function Ribbon({ title, subtitle, snapshot, periods, excelHref, onSync, syncing, refreshing, onRange, user, scope, onLogout, accountsHref }: {
+export default function Ribbon({ title, subtitle, snapshot, periods, excelHref, onSync, syncing, refreshing, onRange, periodKey, user, scope, onLogout, accountsHref }: {
   title: string; subtitle: string; snapshot: string;
   periods: Period[]; excelHref: string; onSync: () => void; syncing: boolean;
-  refreshing?: boolean; onRange?: (key: string) => void;
+  refreshing?: boolean; onRange?: (key: string) => void; periodKey?: string;
   user?: string; scope?: string | null; onLogout?: () => void; accountsHref?: string;
 }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // Автоподстановка дат календаря из активного диапазона (быстрый фильтр/снимок).
+  useEffect(() => {
+    const m = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(periodKey || "");
+    if (m) { setFrom(m[1]); setTo(m[2]); }
+  }, [periodKey]);
   const today = new Date().toISOString().slice(0, 10);
   const showRange = () => { if (from && to && from <= to && onRange) onRange(`${from}_${to}`); };
   const dateInput: React.CSSProperties = {

@@ -35,20 +35,6 @@ const PAGES: [PageKey, string][] = [
 ];
 const ACTIVE_WINDOW_S = 7 * 86400;
 
-// Разбивка снимков на пилюли периода по длительности.
-function snapDays(key: string): number {
-  const [a, b] = key.split("_");
-  const da = Date.parse(a), db = Date.parse(b);
-  if (isNaN(da) || isNaN(db)) return 30;
-  return Math.max(1, Math.round((db - da) / 86400000));
-}
-function bucketOf(days: number): string {
-  if (days <= 1.5) return "Сутки";
-  if (days <= 10) return "Неделя";
-  if (days <= 45) return "Месяц";
-  return "Квартал";
-}
-
 // Лестница быстрых диапазонов: любой собирается из архива на лету (без Omnicomm),
 // частые окна пред-прогреты синком → отдаются мгновенно.
 const RANGE_PICKS: { name: string; days: number }[] = [
@@ -263,14 +249,11 @@ export default function Page() {
     if (key && key !== periodKey) { setPeriodKey(key); load(key); }
   }, [periodKey, load]);
 
-  // пилюли периода — лестница трейлинг-диапазонов (любой доступен, собирается из архива)
+  // пилюли периода — лестница трейлинг-диапазонов (любой доступен, собирается из архива).
+  // active — ТОЛЬКО точное совпадение ключа (иначе одно окно подсвечивало бы несколько пилюль).
   const periods: Period[] = useMemo(() => RANGE_PICKS.map(({ name, days }) => {
     const key = trailingKey(days);
-    return {
-      key: name, name, disabled: false,
-      active: key === periodKey || bucketOf(snapDays(periodKey || "")) === name,
-      onClick: () => onRange(key),
-    };
+    return { key: name, name, disabled: false, active: key === periodKey, onClick: () => onRange(key) };
   }), [periodKey, onRange]);
 
   const toggle = (id: string) => setSelected((s) => {
@@ -320,7 +303,7 @@ export default function Page() {
       <Ribbon
         title="Автопарк КАП — аналитика" subtitle="Omnicomm Holding · отчёт"
         snapshot={snapLabel} periods={periods} excelHref={excelUrl(periodKey || undefined)}
-        onSync={onSync} syncing={syncing} refreshing={refreshing} onRange={onRange}
+        onSync={onSync} syncing={syncing} refreshing={refreshing} onRange={onRange} periodKey={periodKey}
         user={me?.username} scope={me?.org_name} onLogout={onLogout}
         accountsHref={(me && (me.role === "admin" || !me.org_id)) ? `${API}/api/accounts` : undefined}
       />
