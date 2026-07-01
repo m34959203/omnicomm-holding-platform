@@ -265,8 +265,11 @@ export default function Page() {
     () => dzoNodes(orgs).map((n) => allRows.find((r) => r.org_id === n.org_id)!).filter(Boolean),
     [orgs, allRows],
   );
+  // Счётчик ТС в шапке синхронизирован с ТЕКУЩИМ снимком: без выбора — авторитетный
+  // total снимка (dash.fleet.vehicles), с выбором ДЗО — сумма выбранных.
+  const vehCount = selected.size ? agg.veh : (dash?.fleet?.vehicles ?? agg.veh);
   const summary = (selected.size ? `${selected.size} ДЗО` : "Все ДЗО")
-    + ` · ${agg.veh} ТС · ${dash?.period?.label ?? "—"}`;
+    + ` · ${vehCount} ТС · ${dash?.period?.label ?? "—"}`;
 
   const onVehicle = (id: string, name?: string, ts?: number) => setVehCard({ id, name, ts });
   const onJump = (p: string) => setPage(p as PageKey);   // KPI/график → переход на страницу
