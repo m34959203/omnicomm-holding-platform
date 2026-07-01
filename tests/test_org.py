@@ -71,6 +71,53 @@ def test_subtree_includes_descendants():
     assert sub == {"uran", "tfo", "shfo", "contr-a"}
 
 
+# Дерево с узлом-«срезом» Omnicomm (сохранённое представление в слэшах), который
+# переспис­ывает уже существующие ДЗО под НОВЫМИ org_id → двойной счёт. В КАП это
+# `/Безопасное вождение/`. Срез должен исчезнуть из dim_org, а его ТС — переехать
+# на каноничных двойников по имени (в т.ч. ТС, лежащий ТОЛЬКО в срезе).
+SLICE_TREE = [
+    {
+        "id": "kap", "name": "АО НАК Казатомпром",
+        "objects": [],
+        "children": [
+            {"id": "uran-real", "name": "Уранэнерго",
+             "objects": [{"terminal_id": "v-uran"}]},
+            {"id": "slice", "name": "/Безопасное вождение/",
+             "objects": [{"terminal_id": "v-slice-direct"}],
+             "children": [
+                 {"id": "uran-dup", "name": "Уранэнерго",
+                  "objects": [
+                      {"terminal_id": "v-uran"},        # дубль реального ТС
+                      {"terminal_id": "v-only-slice"},  # ТС ТОЛЬКО в срезе
+                  ]},
+             ]},
+        ],
+    },
+]
+
+
+def test_slice_node_dropped_from_dim_org():
+    tree, _ = org.build_from_omnicomm_tree(SLICE_TREE)
+    names = [o.name for o in tree.all_orgs()]
+    assert "/Безопасное вождение/" not in names
+    assert not tree.exists("slice")
+    assert not tree.exists("uran-dup")          # дубль-дитя тоже ушёл
+    # каноничное ДЗО и его org_id сохранены, дублей имени нет
+    assert tree.exists("uran-real")
+    assert names.count("Уранэнерго") == 1
+
+
+def test_slice_vehicles_remapped_to_canonical_twin():
+    _, vmap = org.build_from_omnicomm_tree(SLICE_TREE)
+    # реальный узел перебивает срезовую привязку
+    assert vmap["v-uran"] == "uran-real"
+    # ТС, который Omnicomm положил ТОЛЬКО в срез, не потерян — уехал на двойника
+    assert vmap["v-only-slice"] == "uran-real"
+    # ни одна привязка не указывает на удалённый срезовый узел
+    live = {o.org_id for o in org.build_from_omnicomm_tree(SLICE_TREE)[0].all_orgs()}
+    assert set(vmap.values()) <= live
+
+
 def test_dzo_sees_own_subdzo_and_contractor():
     tree, _ = _build()
     # Уранэнерго видит свои под-ДЗО и подрядчика…

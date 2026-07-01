@@ -86,6 +86,21 @@ class Org:
 _DEPTH_LEVELS = [OrgLevel.HOLDING, OrgLevel.DZO, OrgLevel.SUB_DZO]
 
 
+def _is_group_slice(name: str) -> bool:
+    """Узел-«срез» Omnicomm (сохранённое представление), а не реальная организация.
+
+    В аккаунте КАП такие узлы названы в слэшах — напр. `/Безопасное вождение/` —
+    и переспис­ывают уже существующие ДЗО (те же организации, но под НОВЫМИ
+    org_id). Это фантомная папка-представление: её поддерево = ДУБЛИ каноничных
+    узлов → в роллап холдинга попадает ДВОЙНОЙ счёт ТС. Такие узлы выкидываем из
+    `dim_org`, а их ТС переносим на каноничных двойников по имени (см.
+    `build_from_omnicomm_tree`), чтобы не потерять ТС, которые Omnicomm положил
+    только в срез.
+    """
+    n = (name or "").strip()
+    return len(n) >= 2 and n.startswith("/") and n.endswith("/")
+
+
 class OrgTree:
     """Иерархия организаций с операциями доступа по поддереву.
 
@@ -206,23 +221,39 @@ def build_from_omnicomm_tree(
     отдельно через `apply_contractor_tags` (из структуры их не вывести).
 
     Возвращает `(tree, vehicle_org)`, где `vehicle_org[vehicle_id] = org_id`.
-    """
-    orgs: list[Org] = [Org(org_id=root_id, name=root_name, parent_id=None,
-                           level=OrgLevel.HOLDING, type=OrgType.OWN)]
-    vehicle_org: dict[str, str] = {}
 
+    Узлы-«срезы» Omnicomm (сохранённые представления, имя в слэшах — напр.
+    `/Безопасное вождение/`) выкидываются: их поддерево — это ДУБЛИ уже
+    существующих ДЗО под новыми org_id, из-за чего в роллап холдинга попадал
+    двойной счёт ТС. ТС такого поддерева переносятся на каноничного двойника по
+    имени, а реальный (не-срезовый) узел всегда перебивает срезовую привязку —
+    так не теряется ни один ТС, который Omnicomm положил только в срез.
+    """
     def level_for(depth: int) -> OrgLevel:
         if depth < len(_DEPTH_LEVELS):
             return _DEPTH_LEVELS[depth]
         return OrgLevel.SUB_DZO
 
-    def walk(node: dict, parent_id: str, depth: int) -> None:
+    # 1-й проход: собрать все узлы дерева (без сборки dim_org) + пометить,
+    # какие лежат в поддереве узла-среза.
+    @dataclass
+    class _Node:
+        nid: str
+        name: str
+        parent_id: str
+        depth: int
+        vids: list[str]
+        in_slice: bool  # сам узел или любой предок — срез
+
+    collected: list[_Node] = []
+
+    def walk(node: dict, parent_id: str, depth: int, under_slice: bool) -> None:
         nid = str(node.get("id") or node.get("uuid") or "").strip()
         if not nid:
             return
         name = str(node.get("name") or nid).strip()
-        orgs.append(Org(org_id=nid, name=name, parent_id=parent_id,
-                        level=level_for(depth), type=OrgType.OWN))
+        is_slice = under_slice or _is_group_slice(name)
+        vids: list[str] = []
         for obj in node.get("objects") or []:
             if not isinstance(obj, dict):
                 continue
@@ -232,14 +263,46 @@ def build_from_omnicomm_tree(
             # assign_org_ids не найдёт ТС (баг: реестр по uuid, метрики по terminal_id).
             vid = str(obj.get("terminal_id") or obj.get("id") or obj.get("uuid") or "").strip()
             if vid:
-                vehicle_org[vid] = nid
+                vids.append(vid)
+        collected.append(_Node(nid, name, parent_id, depth, vids, is_slice))
         for child in node.get("children") or []:
             if isinstance(child, dict):
-                walk(child, nid, depth + 1)
+                walk(child, nid, depth + 1, is_slice)
 
     for root in nodes or []:
         if isinstance(root, dict):
-            walk(root, root_id, 1)  # верхний узел аккаунта = ДЗО (глубина 1)
+            walk(root, root_id, 1, False)  # верхний узел аккаунта = ДЗО (глубина 1)
+
+    # Каноничные (не-срезовые) узлы: dim_org строим только из них.
+    orgs: list[Org] = [Org(org_id=root_id, name=root_name, parent_id=None,
+                           level=OrgLevel.HOLDING, type=OrgType.OWN)]
+    canonical_id_by_name: dict[str, str] = {}
+    for n in collected:
+        if n.in_slice:
+            continue
+        orgs.append(Org(org_id=n.nid, name=n.name, parent_id=n.parent_id,
+                        level=level_for(n.depth), type=OrgType.OWN))
+        canonical_id_by_name.setdefault(n.name, n.nid)
+
+    # Привязка ТС. Сначала — узлы среза: их ТС вешаем на каноничного двойника по
+    # имени (если есть). Затем — каноничные узлы: они перебивают срезовую
+    # привязку. Так реальный узел всегда «выигрывает», а ТС, лежащий ТОЛЬКО в
+    # срезе, сохраняется на двойнике.
+    vehicle_org: dict[str, str] = {}
+    for n in collected:
+        if not n.in_slice:
+            continue
+        target = canonical_id_by_name.get(n.name)
+        if not target:
+            continue  # сам узел-срез без каноничного двойника — его прямые ТС
+            #            почти всегда есть и под каноничным узлом (перекроются ниже)
+        for vid in n.vids:
+            vehicle_org[vid] = target
+    for n in collected:
+        if n.in_slice:
+            continue
+        for vid in n.vids:
+            vehicle_org[vid] = n.nid
 
     return OrgTree(orgs), vehicle_org
 
