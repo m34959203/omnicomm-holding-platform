@@ -528,12 +528,36 @@ class OmnicommClient:
             return rows if isinstance(rows, list) else []
         return _as_list(data)
 
-    def list_geozones(self) -> list[dict]:
-        """Геозоны клиента: GET /api/service/geozones/geozones (rows[])."""
-        data = self._request("GET", "geozones_list")
-        if isinstance(data, dict):
-            return data.get("rows", []) or []
-        return _as_list(data)
+    def list_geozones(self, *, page_size: int = 200) -> list[dict]:
+        """Геозоны клиента: GET /api/service/geozones/geozones (rows[]).
+
+        Ответ ПАГИНИРОВАН (`{total,page,pageSize,rows}`) — тянем ВСЕ страницы, иначе
+        берётся лишь первая (напр. 200 из 401, включая внутренние геозоны ДЗО).
+        Дедуп по id/uuid; страховочный кап на число страниц."""
+        first = self._request("GET", "geozones_list",
+                               params={"page": 1, "pageSize": page_size})
+        if not isinstance(first, dict):
+            return _as_list(first)
+        rows = list(first.get("rows") or [])
+        total = int(first.get("total") or len(rows))
+        size = int(first.get("pageSize") or page_size) or page_size
+        pages = (total + size - 1) // size
+        for pg in range(2, min(pages, 100) + 1):     # кап 100 страниц (защита от цикла)
+            more = self._request("GET", "geozones_list",
+                                 params={"page": pg, "pageSize": size})
+            batch = (more or {}).get("rows") if isinstance(more, dict) else None
+            if not batch:
+                break
+            rows.extend(batch)
+        # дедуп по id (иначе uuid), сохраняя порядок
+        seen, out = set(), []
+        for gz in rows:
+            key = gz.get("id") or gz.get("uuid") or id(gz)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(gz)
+        return out
 
     def get_geozones_report(self, vehicle_ids: list[str], period: ReportPeriod
                             ) -> list[dict]:
