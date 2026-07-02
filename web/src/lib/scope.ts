@@ -9,6 +9,7 @@ import {
   OrgNode,
   Recommendation,
   SensorHealth,
+  Tyres,
 } from "./api";
 
 export const TABS = ["money", "speed", "map", "quality", "maint",
@@ -80,6 +81,15 @@ export function scopeMaint(mt: Maintenance | null, inScope: InScope): Maintenanc
   const counts: Record<string, number> = {};
   for (const i of items) counts[i.status] = (counts[i.status] ?? 0) + 1;
   return { ...mt, items, counts };
+}
+
+export function scopeTyres(ty: Tyres | null, inScope: InScope): Tyres | null {
+  if (!ty) return null;
+  const items = ty.items.filter((i) => inScope(i.terminal_id));
+  const counts: Record<string, number> = {};
+  let wear = 0;
+  for (const i of items) { counts[i.status] = (counts[i.status] ?? 0) + 1; wear += i.wear_kzt ?? 0; }
+  return { ...ty, items, counts, wear_kzt_total: Math.round(wear) };
 }
 
 // Лента «что требует внимания»: топ-N сигналов, ранжированных по severity-весу.

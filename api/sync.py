@@ -23,7 +23,7 @@ from omnicomm_report import (
 from omnicomm_report.api_client import MAX_VEHICLES_PER_REPORT
 from omnicomm_report.models import ReportPeriod
 
-from . import cache, fetch, fleet_cache, health, serialize
+from . import cache, fetch, fleet_cache, health, serialize, tyres
 
 ProgressCb = Callable[[float, str], None]
 
@@ -182,7 +182,7 @@ def _demo_violations(vehicles) -> dict:
 def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
                        raw_geozones, sensor_section, maint_section,
                        fuel_price_kzt, progress, visits=None,
-                       seed_accounts: bool = False,
+                       seed_accounts: bool = False, tyre_section=None,
                        geozones_override=None) -> dict:
     """Собрать снапшот дашборда из готовых ТС/визитов (общий хвост для полного и
     инкрементального синка): роллапы KPI → экономика (вентиль доверия) →
@@ -256,6 +256,7 @@ def _assemble_snapshot(*, vehicles, tree, vehicle_org, period, violations,
                      else serialize.geozone_features_json(raw_geozones)),
         "sensor_health": sensor_section,
         "maintenance": maint_section,
+        "tyres": tyre_section,
         # Отчётные формы паритета (kb-14): данные уже на руках.
         "geozone_visits": reports.build_geozone_visits(
             visits or [], {str(v.vehicle_id): v.name for v in vehicles}),
@@ -331,6 +332,7 @@ def build_range_snapshot(start_ts: int, end_ts: int, *,
         violations=violations, raw_geozones=None,
         geozones_override=base.get("geozones"),
         sensor_section=base.get("sensor_health"), maint_section=base.get("maintenance"),
+        tyre_section=base.get("tyres"),
         fuel_price_kzt=fuel_price_kzt or config.DEFAULT_FUEL_PRICE_KZT,
         progress=lambda *_: None, visits=visits, seed_accounts=False)
     synced_at = cache.save_snapshot(snap, period_key=pkey, label=period.human(),
@@ -472,11 +474,14 @@ def run_incremental_sync(progress: ProgressCb, *, ingest_days: int = None,
     sensor_section = health.build_sensor_health(
         activity, records, tree_vehicles, now=now, fetch_state=client.get_vehicle_state)
     maint_section = health.build_maintenance(records, vehicles)
+    # Шины: пробег комплекта копится с установки из ВСЕГО архива (не за окно).
+    tyre_section = tyres.build_tyres(vehicles, now_ts=now, raw_path=raw_path)
 
     snapshot = _assemble_snapshot(
         vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=view,
         violations=violations, raw_geozones=raw_geozones,
         sensor_section=sensor_section, maint_section=maint_section,
+        tyre_section=tyre_section,
         fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits,
         seed_accounts=True)
     synced_at = cache.save_snapshot(snapshot, period_key=pkey, label=view.human(),
@@ -511,6 +516,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
     visits: list = []         # визиты геозон (для формы «Посещение геозон»)
     sensor_section = None     # «Качество данных» (R7) — заполняется ниже
     maint_section = None      # «Контроль ТО» (R6)
+    tyre_section = None       # «Учёт шин по пробегу»
     if demo:
         registry = demo_data.build_demo_registry()
         tree, vehicle_org = registry.tree, registry.vehicle_org
@@ -519,6 +525,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         violations = _demo_violations(vehicles)
         sensor_section = health.build_sensor_health_demo(vehicles, now=end_ts)
         maint_section = health.build_maintenance_demo(vehicles)
+        tyre_section = tyres.build_tyres_demo(vehicles)
     else:
         # Дерево организаций строим из ЖИВОГО дерева ТС КАП (самообновляемо),
         # а не из устаревшего реестра на диске.
@@ -559,6 +566,8 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
             activity, records, tree_vehicles, now=end_ts,
             fetch_state=client.get_vehicle_state)   # ур.1.5 — напряжение подозрительных
         maint_section = health.build_maintenance(records, vehicles)
+        # Шины: пробег комплекта с установки из архива (не за окно синка).
+        tyre_section = tyres.build_tyres(vehicles, now_ts=end_ts)
         # Карта геозон — лёгкий вызов (геометрия из list_geozones).
         raw_geozones = client.list_geozones()
         seed = geozones.build_seed(raw_geozones)
@@ -587,6 +596,7 @@ def run_sync(progress: ProgressCb, *, demo: bool, start_ts: int, end_ts: int,
         vehicles=vehicles, tree=tree, vehicle_org=vehicle_org, period=period,
         violations=violations, raw_geozones=raw_geozones,
         sensor_section=sensor_section, maint_section=maint_section,
+        tyre_section=tyre_section,
         fuel_price_kzt=fuel_price_kzt, progress=progress, visits=visits,
         seed_accounts=not demo)   # авто-сидинг учёток только на боевом дереве
     synced_at = cache.save_snapshot(snapshot, period_key=pkey,

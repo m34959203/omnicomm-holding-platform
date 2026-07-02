@@ -323,6 +323,16 @@ MAINT_REMIND_BEFORE_KM = float(os.getenv("MAINT_REMIND_BEFORE_KM", "1000") or 10
 MAINT_REMIND_BEFORE_MH = float(os.getenv("MAINT_REMIND_BEFORE_MH", "25") or 25)
 
 
+# --- Учёт автошин по пробегу (docs/knowledge-base/11, родственно ТО) ----------
+# Ресурс комплекта, стоимость и «напомнить за» — дефолты, per-ТС override в сторе
+# (data/cache/tyres.db). Точные ресурсы по модели/бренду заведутся справочником.
+TYRE_RESOURCE_KM_DEFAULT = float(os.getenv("TYRE_RESOURCE_KM_DEFAULT", "60000") or 60000)
+TYRE_RESOURCE_KM_HEAVY = float(os.getenv("TYRE_RESOURCE_KM_HEAVY", "50000") or 50000)
+TYRE_REMIND_BEFORE_KM = float(os.getenv("TYRE_REMIND_BEFORE_KM", "3000") or 3000)
+TYRE_SET_COST_KZT_DEFAULT = float(os.getenv("TYRE_SET_COST_KZT_DEFAULT", "400000") or 400000)
+TYRE_SET_COST_KZT_HEAVY = float(os.getenv("TYRE_SET_COST_KZT_HEAVY", "1200000") or 1200000)
+
+
 # --- Спец-лимит по типу груза (R4.4, ADR) -------------------------------------
 # Для опасных грузов (ADR) внутренний стандарт снижает лимит на величину ниже.
 # Привязка ТС→тип груза приходит отдельным справочником (согласует Данияр) —

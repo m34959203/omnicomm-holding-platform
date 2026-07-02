@@ -97,6 +97,12 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
 - `jobs.py` — фоновые задачи + single-flight (без дублирующих синков).
 - `fetch.py` — параллельный забор из Omnicomm; `serialize.py` — сериализация снапшота.
 - `health.py` — секции Sensor Health и Контроль ТО; `excel.py` — Excel-выгрузка.
+- `tyres.py` + `tyre_store.py` — **учёт автошин по пробегу** (родственно ТО, но ресурс
+  комплекта копится с даты установки из ГОДОВОГО архива `raw_store`, а не за окно снапшота).
+  Секция `tyres` в снапшоте, износ в ₸ (доля отхоженного × стоимость). Стор `data/cache/tyres.db`
+  (план/цикл/журнал замен). Эндпоинты `/api/tyres`, `/api/tyres/{id}/replace|plan|history`
+  (мутации — по скоупу ТС). Движок — `omnicomm_report/tyres.py`. Тесты `test_tyres.py`.
+  MVP = комплект на ТС; позиции/оси/ротация — фаза 2. **В Omnicomm такого отчёта нет** (наш value-add).
 - `vehicle.py` — карточка ТС: трек **сначала из локального архива** (`raw_store.fact_track`,
   мгновенно, в Omnicomm не ходим), live-фолбэк с TTL-кэшем только если архив за окно пуст.
 - `raw_store.py` — сырое локальное хранилище SQLite: `fact_daily` (агрегат ТС×сутки),

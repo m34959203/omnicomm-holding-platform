@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation,
+  Dashboard, FuelForm, GeoFeature, Maintenance, Meta, Recommendation, Tyres as TyresData,
   API, FuelDetail, Me, SensorHealth, SpeedThresholds, SpeedTrend, ViolationsDetail,
   excelUrl, getDashboard, getFuel, getFuelDetail, getGeozones, getJob, getMaintenance,
-  getMe, getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getViolationsDetail,
+  getMe, getRecommendations, getSensorHealth, getSnapshots, getSpeedTrend, getTyres, getViolationsDetail,
   logout, startSync,
 } from "@/lib/api";
 import {
   Agg, C, DzoRow, FONT, aggregate, buildDzoRows, dzoNodes,
 } from "@/lib/atlas";
-import { indexOrgs, makeInScope, scopeMaint, scopeRecs, scopeSensor, subtreeOrgIds } from "@/lib/scope";
+import { indexOrgs, makeInScope, scopeMaint, scopeRecs, scopeSensor, scopeTyres, subtreeOrgIds } from "@/lib/scope";
 import Ribbon, { Period } from "@/components/atlas/Ribbon";
 import Rail from "@/components/atlas/Rail";
 import Overview from "@/components/atlas/Overview";
@@ -22,16 +22,18 @@ import Trend, { TrendMetric } from "@/components/atlas/Trend";
 import Fuel from "@/components/atlas/Fuel";
 import Quality from "@/components/atlas/Quality";
 import Maint from "@/components/atlas/Maint";
+import Tyres from "@/components/atlas/Tyres";
 import Login from "@/components/atlas/Login";
 import Desktop from "@/components/atlas/Desktop";
 import { WidgetData } from "@/widgets/registry";
 import VehicleCard from "@/components/VehicleCard";
 
-type PageKey = "overview" | "money" | "fuel" | "speed" | "violations" | "trend" | "quality" | "maint" | "desktop";
+type PageKey = "overview" | "money" | "fuel" | "speed" | "violations" | "trend" | "quality" | "maint" | "tyres" | "desktop";
 const PAGES: [PageKey, string][] = [
   ["overview", "Обзор"], ["money", "Деньги"], ["fuel", "Топливо"],
   ["speed", "Скоростной режим"], ["violations", "Нарушения"], ["trend", "Повторяемость"],
-  ["quality", "Качество данных"], ["maint", "Контроль ТО"], ["desktop", "Рабочий стол"],
+  ["quality", "Качество данных"], ["maint", "Контроль ТО"], ["tyres", "Шины"],
+  ["desktop", "Рабочий стол"],
 ];
 const ACTIVE_WINDOW_S = 7 * 86400;
 
@@ -55,6 +57,7 @@ export default function Page() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [sensor, setSensor] = useState<SensorHealth | null>(null);
   const [maint, setMaint] = useState<Maintenance | null>(null);
+  const [tyres, setTyres] = useState<TyresData | null>(null);
   const [, setFuel] = useState<FuelForm | null>(null);
   const [vehicleOrg, setVehicleOrg] = useState<Record<string, string>>({});
   const [snaps, setSnaps] = useState<Meta[]>([]);
@@ -87,14 +90,14 @@ export default function Page() {
       if (!list.length) { setState("empty"); return; }
       const k = (key ?? periodKey) || undefined;
       const d = await getDashboard(k);
-      const [g, r, sh, mt, fu] = await Promise.all([
+      const [g, r, sh, mt, fu, ty] = await Promise.all([
         getGeozones(k), getRecommendations(k), getSensorHealth(k),
-        getMaintenance(k), getFuel(k),
+        getMaintenance(k), getFuel(k), getTyres(k),
       ]);
       setDash(d); setGeos(g.geozones ?? []);
       setRecs(r.recommendations ?? []); setVehicleOrg(r.vehicle_org ?? {});
       setSensor(sh.sensor_health ?? null); setMaint(mt.maintenance ?? null);
-      setFuel(fu.fuel ?? null);
+      setFuel(fu.fuel ?? null); setTyres(ty.tyres ?? null);
       if (d.meta?.period_key) setPeriodKey(d.meta.period_key);
       setState("ready");
     } catch { setState("down"); }
@@ -204,6 +207,7 @@ export default function Page() {
   const recsS = useMemo(() => scopeRecs(recs, inScope), [recs, inScope]);
   const sensorS = useMemo(() => scopeSensor(sensor, inScope), [sensor, inScope]);
   const maintS = useMemo(() => scopeMaint(maint, inScope), [maint, inScope]);
+  const tyresS = useMemo(() => scopeTyres(tyres, inScope), [tyres, inScope]);
   // vehicleId → org_id ВЕРХНЕЙ ДЗО (для группировки тренда «На ТС / Доля»).
   const vehTopDzo = useMemo(() => {
     const map: Record<string, string> = {};
@@ -333,6 +337,7 @@ export default function Page() {
               {page === "trend" && <Trend trend={trend} loading={trendLoading} metric={metric} onMetric={setMetric} dzoRows={rows} vehTopDzo={vehTopDzo} inScope={inScope} onVehicle={onVehicle} />}
               {page === "quality" && <Quality rows={rows} sensor={sensorS} onSelectDzo={toggle} onVehicle={onVehicle} />}
               {page === "maint" && <Maint rows={rows} maint={maintS} onSelectDzo={toggle} onVehicle={onVehicle} />}
+              {page === "tyres" && <Tyres rows={rows} tyres={tyresS} onSelectDzo={toggle} onVehicle={onVehicle} />}
               {page === "desktop" && <Desktop data={widgetData} canTemplate={me?.role === "admin" || me?.role === "editor"} me={me?.username} />}
             </>
           )}

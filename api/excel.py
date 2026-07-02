@@ -124,6 +124,18 @@ def build_workbook(snapshot: dict) -> bytes:
                ["ТС", "Статус", "Моточасы с ТО", "Пробег с ТО, км",
                 "Осталось мч", "Осталось км", "Комментарий"], m_rows)
 
+    # 4б. Учёт шин по пробегу
+    tyres = snapshot.get("tyres")
+    if tyres:
+        t_rows = [[t.get("name") or t.get("terminal_id"), t.get("status"),
+                   _r1(t.get("km_since")), _r1(t.get("resource_km")),
+                   _r1((t.get("worn_share") or 0) * 100, 0), _r1(t.get("km_left")),
+                   _r1(t.get("wear_kzt"), 0), t.get("brand") or "", t.get("reason")]
+                  for t in (tyres.get("items") or [])]
+        _sheet(wb, "Шины",
+               ["ТС", "Статус", "Пробег комплекта, км", "Ресурс, км",
+                "Отхожено, %", "Осталось, км", "Износ, ₸", "Бренд", "Комментарий"], t_rows)
+
     # 5. Качество данных (Sensor Health)
     sh = snapshot.get("sensor_health")
     if sh:

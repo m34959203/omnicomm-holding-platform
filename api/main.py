@@ -30,7 +30,7 @@ from pydantic import BaseModel
 
 from omnicomm_report import config
 
-from . import auth_session, cache, excel, jobs, layouts, scoping, sync, vehicle
+from . import auth_session, cache, excel, jobs, layouts, scoping, sync, tyre_store, vehicle
 
 # Загрузить .env в окружение (cron его не сорсит) — иначе Settings.from_env()
 # не увидит LOGIN/PASSWORD/SERVICE для live-синка.
@@ -412,6 +412,65 @@ def _scope_allowed(request: Request) -> Optional[set]:
         return None
     snap = cache.latest_snapshot() or {}
     return scoping.allowed_terminals(snap, v["org_id"])
+
+
+@app.get("/api/tyres")
+def tyres_section(request: Request, period_key: Optional[str] = Query(None)) -> dict:
+    """Учёт шин по пробегу: статусы комплектов + износ ₸ (скоуп по ДЗО)."""
+    snap = _snapshot(period_key, request)
+    return {"tyres": snap.get("tyres"),
+            "vehicle_org": snap.get("vehicle_org", {}), "meta": snap.get("_meta")}
+
+
+def _require_terminal_scope(request: Request, terminal_id: str) -> None:
+    """Мутация комплекта шин ТС разрешена, только если ТС в поддереве зрителя."""
+    allowed = _scope_allowed(request)   # None → admin/КАП (все)
+    if allowed is not None and str(terminal_id) not in allowed:
+        raise HTTPException(404, "ТС недоступно в вашем скоупе")
+
+
+class TyrePlanBody(BaseModel):
+    resource_km: Optional[float] = None
+    cost_kzt: Optional[float] = None
+    remind_before_km: Optional[float] = None
+    installed_ts: Optional[int] = None
+    brand: Optional[str] = None
+    size: Optional[str] = None
+
+
+@app.post("/api/tyres/{terminal_id}/plan")
+def tyres_set_plan(terminal_id: str, body: TyrePlanBody, request: Request) -> dict:
+    """Задать норматив комплекта (ресурс/стоимость/бренд/дата установки) для ТС."""
+    _require_terminal_scope(request, terminal_id)
+    tyre_store.set_plan(
+        terminal_id, resource_km=body.resource_km, cost_kzt=body.cost_kzt,
+        remind_before_km=body.remind_before_km, installed_ts=body.installed_ts,
+        brand=body.brand, size=body.size, updated_at=int(time.time()))
+    return {"ok": True, "terminal_id": terminal_id,
+            "note": "применится при следующем синке/пересборке периода"}
+
+
+class TyreReplaceBody(BaseModel):
+    changed_ts: Optional[int] = None
+    km_at_change: Optional[float] = None
+    note: Optional[str] = None
+
+
+@app.post("/api/tyres/{terminal_id}/replace")
+def tyres_replace(terminal_id: str, body: TyreReplaceBody, request: Request) -> dict:
+    """Подтвердить замену комплекта → новый цикл от даты замены (сброс пробега)."""
+    _require_terminal_scope(request, terminal_id)
+    ts = int(body.changed_ts or time.time())
+    tyre_store.replace(terminal_id, ts, km_at_change=body.km_at_change, note=body.note)
+    return {"ok": True, "terminal_id": terminal_id, "changed_ts": ts,
+            "note": "цикл сброшен; статус обновится при следующем синке/пересборке"}
+
+
+@app.get("/api/tyres/{terminal_id}/history")
+def tyres_history(terminal_id: str, request: Request) -> dict:
+    """Журнал замен комплекта по ТС."""
+    _require_terminal_scope(request, terminal_id)
+    return {"terminal_id": terminal_id, "history": tyre_store.history(terminal_id)}
 
 
 @app.get("/api/speed-trend")

@@ -97,6 +97,33 @@ def load_daily(start_ts: int, end_ts: int, path: str = DEFAULT_PATH) -> list[dic
     return [json.loads(r[0]) for r in rows]
 
 
+# Пробег из архива через json_extract (для учёта шин: ресурс копится месяцами,
+# полный годовой пробег суммируем в SQL, не парся JSON построчно в Python).
+_MILEAGE_EXPR = "json_extract(payload,'$.consolidatedReport.mv.mileage')"
+
+
+def total_mileage_by_terminal(end_ts: int, path: str = DEFAULT_PATH) -> dict[str, float]:
+    """{terminal_id -> суммарный пробег (км) по всему архиву на дату ≤ end_ts}."""
+    if not os.path.exists(path):
+        return {}
+    with _connect(path) as conn:
+        rows = conn.execute(
+            f"SELECT terminal_id, COALESCE(SUM({_MILEAGE_EXPR}),0) FROM fact_daily "
+            "WHERE date<=? GROUP BY terminal_id", (int(end_ts),)).fetchall()
+    return {str(r[0]): float(r[1] or 0.0) for r in rows}
+
+
+def mileage_before(terminal_id: str, ts: int, path: str = DEFAULT_PATH) -> float:
+    """Пробег (км) ТС ДО момента `ts` — для вычитания при `installed_ts` цикла шин."""
+    if not os.path.exists(path):
+        return 0.0
+    with _connect(path) as conn:
+        row = conn.execute(
+            f"SELECT COALESCE(SUM({_MILEAGE_EXPR}),0) FROM fact_daily "
+            "WHERE terminal_id=? AND date<?", (str(terminal_id), int(ts))).fetchone()
+    return float(row[0] or 0.0)
+
+
 def upsert_visits(visits: Any, path: str = DEFAULT_PATH) -> int:
     """Сохранить визиты геозон (upsert по ТС×геозона×начало визита)."""
     n = 0

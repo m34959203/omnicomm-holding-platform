@@ -116,6 +116,27 @@ export interface Maintenance {
   items: MaintenanceItem[];
   note: string;
 }
+export interface TyreItem {
+  terminal_id: string;
+  name: string | null;
+  status: string;
+  km_since: number;
+  km_left: number | null;
+  worn_share: number;
+  wear_kzt: number;
+  resource_km: number;
+  cost_kzt: number;
+  installed_ts: number | null;
+  brand: string | null;
+  size: string | null;
+  reason: string;
+}
+export interface Tyres {
+  counts: Record<string, number>;
+  items: TyreItem[];
+  wear_kzt_total: number;
+  note: string;
+}
 
 // ---- Отчётные формы паритета (kb-14) ----
 export interface VisitRow {
@@ -245,6 +266,26 @@ export const getMaintenance = (key?: string) =>
   get<{ maintenance: Maintenance | null; meta: Meta | null }>(
     `/api/maintenance${key ? `?period_key=${key}` : ""}`,
   );
+export const getTyres = (key?: string) =>
+  get<{ tyres: Tyres | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
+    `/api/tyres${key ? `?period_key=${key}` : ""}`,
+  );
+export async function replaceTyres(terminalId: string, changedTs?: number): Promise<void> {
+  const r = await fetch(`${API}/api/tyres/${terminalId}/replace`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    credentials: "include", body: JSON.stringify({ changed_ts: changedTs ?? null }),
+  });
+  if (!r.ok) throw new HttpError(r.status, "replace tyres");
+}
+export async function setTyrePlan(
+  terminalId: string, body: { resource_km?: number; cost_kzt?: number; installed_ts?: number; brand?: string; size?: string },
+): Promise<void> {
+  const r = await fetch(`${API}/api/tyres/${terminalId}/plan`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    credentials: "include", body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new HttpError(r.status, "set tyre plan");
+}
 export const getGeozoneVisits = (key?: string) =>
   get<{ geozone_visits: GeozoneVisits | null; vehicle_org: Record<string, string>; meta: Meta | null }>(
     `/api/geozone-visits${key ? `?period_key=${key}` : ""}`,

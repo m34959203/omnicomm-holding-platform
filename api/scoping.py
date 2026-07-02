@@ -46,6 +46,7 @@ def scope_snapshot(snap: dict, org_id: str) -> dict:
         # неизвестный узел → fail-closed: пусто
         return {**snap, "orgs": [], "vehicle_org": {}, "economics": None,
                 "recommendations": [], "sensor_health": None, "maintenance": None,
+                "tyres": None,
                 "violations": None, "fuel": None, "fleet_table": None,
                 "geozone_visits": None, "fleet": {"vehicles": 0, "with_data": 0}}
     ids = subtree_ids(node)
@@ -88,6 +89,15 @@ def scope_snapshot(snap: dict, org_id: str) -> dict:
         for i in items:
             counts[i["status"]] = counts.get(i["status"], 0) + 1
         out["maintenance"] = {**mt, "items": items, "counts": counts}
+
+    ty = snap.get("tyres")
+    if ty:
+        items = [i for i in ty.get("items", []) if ins(i.get("terminal_id"))]
+        counts = {}
+        for i in items:
+            counts[i["status"]] = counts.get(i["status"], 0) + 1
+        out["tyres"] = {**ty, "items": items, "counts": counts,
+                        "wear_kzt_total": round(sum(i.get("wear_kzt") or 0 for i in items), 0)}
 
     vi = snap.get("violations")
     if vi:
