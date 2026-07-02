@@ -105,6 +105,15 @@ cd web && pnpm install && pnpm dev       # Next.js (или pnpm build → web/ou
   MVP = комплект на ТС; позиции/оси/ротация — фаза 2. **В Omnicomm такого отчёта нет** (наш value-add).
 - `vehicle.py` — карточка ТС: трек **сначала из локального архива** (`raw_store.fact_track`,
   мгновенно, в Omnicomm не ходим), live-фолбэк с TTL-кэшем только если архив за окно пуст.
+  **АДАПТИВНА ПО ТИПУ АГРЕГАТА:** payload обогащён `vehicle_type` (по имени —
+  `vehicle_types.classify_from_name`, кинематический фолбэк), `type_label`, `model_ref`
+  (реестр `vehicle_models.py` — модель+спека+фото). Набор параметров/секций/сетка карточки
+  выбираются схемой `web/src/lib/cardSchema.ts` (буровая/компрессор → л/моточас, compact без
+  графика; самосвал → л/100км+карта). Референс модели — `web/src/components/atlas/ModelRef.tsx`
+  (фото `web/public/models/<slug>.jpg` same-origin → внешний URL → SVG-иконка `typeIcons.tsx`).
+  **Честная граница:** обороты бурения/часы стрелы/рейсы/перегруз/TPMS/DSM на `projectkap`
+  недоступны — не выдумываем. Типы парка КАП в `vehicle_types.py` (drill_rig/compressor/agp/
+  logging_station/tanker/offroad_special/…). Тесты — `test_vehicle_card_types.py`.
 - `raw_store.py` — сырое локальное хранилище SQLite: `fact_daily` (агрегат ТС×сутки),
   `fact_visit` (визиты геозон), **`fact_track` (упрощённый GPS-трек ТС×сутки)** — основа
   «весь год у себя». `upsert/load_track`, `tracks_present` (batch-skip), `track_coverage`,
