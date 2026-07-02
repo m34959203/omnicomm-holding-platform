@@ -521,6 +521,27 @@ def fuel_detail_ep(
     return fnm.build_fuel_norms(from_iso=from_, to_iso=to, allowed=_scope_allowed(request))
 
 
+# Путь БЕЗ .pptx: CF кеширует статические расширения по URL → авторизованный
+# файл утёк бы мимо RBAC (та же гоча, что /api/accounts). no-store обязательный.
+@app.get("/api/export/slide")
+def export_slide(request: Request, sections: str = Query(""),
+                 period_key: Optional[str] = Query(None)) -> Response:
+    """Выгрузка «галочкой» (kb-15): выбранные разделы одним листом-презентацией.
+    `sections` — CSV из fleet,economics,speed,fuel,quality,maint,tyres (пусто → все)."""
+    from . import slide as slide_mod
+    snap = _snapshot(period_key, request)
+    keys = [s.strip() for s in sections.split(",") if s.strip()]
+    data = slide_mod.build_slide(snap, keys)
+    pkey = period_key or (snap.get("_meta") or {}).get("period_key") or "report"
+    fname = re.sub(r"[^A-Za-z0-9._-]", "_", f"omnicomm-slide-{pkey}.pptx")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"',
+                 "Cache-Control": "no-store, private"},
+    )
+
+
 @app.get("/api/maintenance")
 def maintenance(request: Request, period_key: Optional[str] = Query(None)) -> dict:
     """Контроль ТО (R6): наработка и статусы по парку."""

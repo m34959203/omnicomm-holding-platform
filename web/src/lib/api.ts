@@ -320,6 +320,13 @@ export const getFuel = (key?: string) =>
 export const excelUrl = (key?: string) =>
   `${API}/api/dashboard.xlsx${key ? `?period_key=${key}` : ""}`;
 
+// Выгрузка «галочкой»: выбранные разделы одним листом-презентацией (PPTX).
+export const slideUrl = (sections: string[], key?: string) => {
+  const q = new URLSearchParams({ sections: sections.join(",") });
+  if (key) q.set("period_key", key);
+  return `${API}/api/export/slide?${q}`;
+};
+
 export const getVehicle = (id: string, range?: { start_ts: number; end_ts: number }, name?: string) => {
   const q = new URLSearchParams();
   if (range) { q.set("start_ts", String(range.start_ts)); q.set("end_ts", String(range.end_ts)); }
