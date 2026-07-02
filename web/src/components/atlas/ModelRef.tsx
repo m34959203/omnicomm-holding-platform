@@ -17,12 +17,6 @@ export default function ModelRef({ model }: { model?: ModelRefData | null; type?
       {model.specs && (
         <div style={{ fontSize: 10.5, color: "#8a98ac", marginTop: 3, lineHeight: 1.4 }}>{model.specs}</div>
       )}
-      {model.wiki_url && (
-        <a href={model.wiki_url} target="_blank" rel="noreferrer"
-          style={{ fontSize: 10.5, color: "#1f6fd6", marginTop: 3, display: "inline-block" }}>
-          справка ↗
-        </a>
-      )}
     </div>
   );
 }
