@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-from omnicomm_report import data_loader
+from omnicomm_report import data_loader, vehicle_models, vehicle_types
 from omnicomm_report.models import ReportPeriod
 
 _client = None
@@ -77,19 +77,21 @@ def _period(start_ts: int, end_ts: int) -> ReportPeriod:
                         end=datetime.fromtimestamp(end_ts, timezone.utc))
 
 
-def track_detail(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+def track_detail(terminal_id: str, start_ts: int, end_ts: int,
+                 name: Optional[str] = None) -> dict:
     """Карточка-трек. СНАЧАЛА из локального архива (`raw_store.fact_track`) — мгновенно,
     в Omnicomm не ходим (год треков уже добран бэкфиллом). Если архив за окно пуст
-    (ТС/период ещё не залит) — live-фолбэк с TTL-кэшем."""
+    (ТС/период ещё не залит) — live-фолбэк с TTL-кэшем. `name` (с фронта) → тип
+    агрегата + референс модели для адаптивной карточки."""
     from . import raw_store
     stored = raw_store.load_track(terminal_id, start_ts, end_ts, raw_store.DEFAULT_PATH)
     if stored:
         # трек из архива (мгновенно), но текущее состояние (напряжение/зажигание/адрес) —
         # лёгкий live-вызов /state, иначе карточка показывала пустые поля (регрессия store-read).
-        return _payload_from_track(terminal_id, start_ts, end_ts, stored,
+        return _payload_from_track(terminal_id, start_ts, end_ts, stored, name=name,
                                    state=_current_state(terminal_id), source="store")
     return _cached(f"track:{terminal_id}:{start_ts}:{end_ts}", TRACK_TTL_SEC,
-                   lambda: _track_detail_live(terminal_id, start_ts, end_ts))
+                   lambda: _track_detail_live(terminal_id, start_ts, end_ts, name))
 
 
 def _current_state(terminal_id: str) -> dict:
@@ -108,20 +110,38 @@ def _current_state(terminal_id: str) -> dict:
 
 
 def _payload_from_track(terminal_id: str, start_ts: int, end_ts: int,
-                        track: list[dict], *, state: dict, source: str) -> dict:
-    """Собрать ответ карточки из уже нормализованных точек {lat,lon,speed,ts,sat}."""
+                        track: list[dict], *, name: Optional[str],
+                        state: dict, source: str) -> dict:
+    """Собрать ответ карточки из уже нормализованных точек {lat,lon,speed,ts,sat}.
+
+    Обогащаем типом агрегата (`vehicle_type` — по имени) и референсом модели
+    (`model_ref` — из реестра `vehicle_models`), чтобы фронт собрал карточку
+    под специфику агрегата. Тип из имени; если не распознан и есть трек —
+    кинематический намёк (медленный/статичный → буровая/экскаватор)."""
     poly = _downsample(track, 1000)
     speed_series = [{"ts": t["ts"], "speed": t["speed"]}
                     for t in _downsample(track, 400)]
+    track_max = round(max((t["speed"] for t in track), default=0), 1)
+
+    mref = vehicle_models.lookup(name)
+    vtype = vehicle_types.classify_from_name(name)
+    if vtype == "other" and mref:
+        vtype = mref.get("type_hint") or "other"
+    if vtype == "other" and track_max and track_max < 15:
+        vtype = "drill_rig" if track_max < 3 else "excavator"
+
     return {
         "terminal_id": str(terminal_id),
-        "name": None,
+        "name": name,
+        "vehicle_type": vtype,
+        "type_label": vehicle_types.label(vtype),
+        "model_ref": mref,
         "period": {"start_ts": start_ts, "end_ts": end_ts},
         "track": poly,
         "speed_series": speed_series,
         "last": track[-1] if track else None,
         "track_points": len(track),
-        "track_max_speed": round(max((t["speed"] for t in track), default=0), 1),
+        "track_max_speed": track_max,
         "state": state,
         "telemetry": {},
         "source": source,
@@ -134,7 +154,8 @@ def telemetry(terminal_id: str, start_ts: int, end_ts: int) -> dict:
                    lambda: _telemetry_live(terminal_id, start_ts, end_ts))
 
 
-def _track_detail_live(terminal_id: str, start_ts: int, end_ts: int) -> dict:
+def _track_detail_live(terminal_id: str, start_ts: int, end_ts: int,
+                       name: Optional[str] = None) -> dict:
     """Трек ТС: полилиния + маркеры + ряд скорости. БЫСТРО (~1-2с) — без сводного.
 
     Имя ТС не дёргаем из дерева (~2000-элементный запрос) — фронт знает имя сам.
@@ -161,7 +182,7 @@ def _track_detail_live(terminal_id: str, start_ts: int, end_ts: int) -> dict:
     track = [{"lat": p["latitude"], "lon": p["longitude"],
               "speed": p.get("speed") or 0, "ts": p.get("date"),
               "sat": p.get("satellitesCount")} for p in pts]
-    return _payload_from_track(terminal_id, start_ts, end_ts, track,
+    return _payload_from_track(terminal_id, start_ts, end_ts, track, name=name,
                                state=state, source="live")
 
 

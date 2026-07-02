@@ -176,9 +176,23 @@ export interface FuelForm {
 }
 
 export interface TrackPoint { lat: number; lon: number; speed: number; ts: number; sat?: number }
+export interface ModelRef {
+  canonical: string;
+  model: string;
+  brand?: string | null;
+  type_hint?: string | null;
+  summary?: string;
+  specs?: string;
+  image_slug?: string | null;
+  image_url?: string | null;
+  wiki_url?: string | null;
+}
 export interface VehicleDetail {
   terminal_id: string;
   name: string | null;
+  vehicle_type?: string;
+  type_label?: string;
+  model_ref?: ModelRef | null;
   period: { start_ts: number; end_ts: number };
   track: TrackPoint[];
   speed_series: { ts: number; speed: number }[];
@@ -306,10 +320,13 @@ export const getFuel = (key?: string) =>
 export const excelUrl = (key?: string) =>
   `${API}/api/dashboard.xlsx${key ? `?period_key=${key}` : ""}`;
 
-export const getVehicle = (id: string, range?: { start_ts: number; end_ts: number }) =>
-  get<VehicleDetail>(
-    `/api/vehicle/${id}${range ? `?start_ts=${range.start_ts}&end_ts=${range.end_ts}` : ""}`,
-  );
+export const getVehicle = (id: string, range?: { start_ts: number; end_ts: number }, name?: string) => {
+  const q = new URLSearchParams();
+  if (range) { q.set("start_ts", String(range.start_ts)); q.set("end_ts", String(range.end_ts)); }
+  if (name) q.set("name", name);   // → тип агрегата + референс модели на бэке
+  const qs = q.toString();
+  return get<VehicleDetail>(`/api/vehicle/${id}${qs ? `?${qs}` : ""}`);
+};
 export const getVehicleTelemetry = (id: string) =>
   get<{ terminal_id: string; telemetry: Record<string, number | null> }>(
     `/api/vehicle/${id}/telemetry`,

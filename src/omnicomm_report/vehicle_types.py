@@ -48,6 +48,30 @@ DEFAULT_PROFILES: dict[str, TypeProfile] = {
         "Навесное оборудование: основной параметр — л/моточас."),
     "dump_truck": TypeProfile("dump_truck", "Самосвал", "l_per_100km", False,
         "Перевозки: основной параметр — л/100 км; стоянка с двигателем — потери."),
+    # --- Типы парка геологоразведки КАП (специфика агрегата) ---
+    "drill_rig": TypeProfile("drill_rig", "Буровая установка (ЗИФ)", "l_per_mh", True,
+        "Стационарное разведочное бурение: расход в л/моточас, пробег ≈0 не показываем; "
+        "контроль ТО по наработке, сходимость топливного баланса в поле."),
+    "drill_rig_mobile": TypeProfile("drill_rig_mobile", "УРБ (буровая на шасси)", "both", True,
+        "И едет, и бурит: раздельный расход л/100 км (перегон) и л/моточас (бурение); "
+        "превышения на техдороге = износ; ТО = min(моточасы, пробег)."),
+    "compressor": TypeProfile("compressor", "Компрессор (Atlas Copco)", "l_per_mh", True,
+        "Передвижной компрессор для бурения: л/моточас под нагрузкой, простой вхолостую, "
+        "ТО компрессорного блока по наработке."),
+    "logging_station": TypeProfile("logging_station", "Каротажная станция", "both", True,
+        "Геофизика в скважине: работа спецоборудования на точке + переезды; "
+        "стабильность напряжения критична для аппаратуры."),
+    "agp": TypeProfile("agp", "Автогидроподъёмник (АГП)", "both", True,
+        "Люлька/стрела на месте + переезды: моточасы работы стрелы и КПД, "
+        "ТО гидросистемы по наработке."),
+    "tanker": TypeProfile("tanker", "Топливозаправщик (АТЗ)", "both", False,
+        "Выдача ГСМ (ADR): центральный параметр — баланс выдачи и остаток "
+        "в цистерне; расход шасси НЕ смешивать с перекачанным; строгий скор. режим."),
+    "semi_truck": TypeProfile("semi_truck", "Седельный тягач", "l_per_100km", False,
+        "Магистраль с полуприцепом: л/100 км, контроль сцепки, лимит грузовые>3,5 т с прицепом."),
+    "offroad_special": TypeProfile("offroad_special", "Спецтехника вездеход (КрАЗ/Урал)", "both", True,
+        "Тяжёлое шасси по пересечёнке: флагман — превышения на техдороге → "
+        "ускоренный износ ₸ (не штраф); усиленный контроль шин и ТО."),
     "truck": TypeProfile("truck", "Грузовой/бортовой", "l_per_100km", False,
         "Магистральные/городские перевозки: основной параметр — л/100 км."),
     "bus": TypeProfile("bus", "Автобус", "l_per_100km", False,
@@ -100,20 +124,59 @@ def save_profiles(profiles: dict[str, dict], path: str = TEMPLATES_PATH) -> str:
 
 
 # Ключевые слова в названии/марке → тип (нижний регистр, подстрока).
+# ПОРЯДОК ВАЖЕН: специфичные хинты ВЫШЕ общих марок — «УРБ на шасси МАЗ» и
+# «Каротажная станция Урал» обязаны матчиться до общих «маз»/«урал».
 _NAME_HINTS: list[tuple[str, str]] = [
+    # УРБ и каротаж — до общих марок шасси
+    ("урб", "drill_rig_mobile"), ("бкм", "drill_rig_mobile"),
+    ("каротаж", "logging_station"), ("геофиз", "logging_station"), ("пкс", "logging_station"),
+    # буровые стационарные
+    ("зиф", "drill_rig"), ("буровая", "drill_rig"), ("буров", "drill_rig"),
+    ("сбш", "drill_rig"), ("dml", "drill_rig"),
+    # компрессоры
+    ("atlas copco", "compressor"), ("атлас копко", "compressor"), ("компресс", "compressor"),
+    ("xrvs", "compressor"), ("xaxs", "compressor"), ("xas", "compressor"), ("v900", "compressor"),
+    # АГП / автовышка
+    ("агп", "agp"), ("автогидропод", "agp"), ("автовышк", "agp"), ("автовышка", "agp"),
+    # заправщики / ADR
+    ("атз", "tanker"), ("заправщик", "tanker"), ("топливозап", "tanker"),
+    ("бензовоз", "tanker"), ("мтоп", "tanker"),
+    # мусоровозы/КДМ
     ("мусоров", "refuse_truck"), ("ко-", "refuse_truck"), ("ко 4", "refuse_truck"),
     ("garbage", "refuse_truck"), ("тко", "refuse_truck"), ("бункер", "refuse_truck"),
     ("подмета", "vacuum_sweeper"), ("поливомо", "vacuum_sweeper"),
     ("вакуум", "vacuum_sweeper"), ("кдм", "vacuum_sweeper"),
+    # экскаваторы/краны/погрузчики/тракторы
     ("экскаватор", "excavator"), ("komatsu", "excavator"), ("hitachi", "excavator"),
     ("экг", "excavator"), ("pc ", "excavator"),
-    ("кран", "crane"), ("kato", "crane"), ("автокран", "crane"),
-    ("погрузчик", "loader"), ("liu gong", "loader"), ("liugong", "loader"),
-    ("xcmg", "loader"), ("zl", "loader"), ("lw", "loader"),
+    ("автокран", "crane"), ("кран", "crane"), ("kato", "crane"),
+    ("погрузчик", "loader"), ("develon", "loader"), ("sd300", "loader"), ("doosan", "loader"),
+    ("liu gong", "loader"), ("liugong", "loader"), ("xcmg", "loader"), ("zl", "loader"), ("lw", "loader"),
     ("трактор", "tractor"), ("мтз", "tractor"), ("беларус", "tractor"),
-    ("самосвал", "dump_truck"),
-    ("автобус", "bus"), ("паз", "bus"), ("газель", "truck"),
+    # самосвалы (марки карьерных)
+    ("самосвал", "dump_truck"), ("shacman", "dump_truck"), ("shaanxi", "dump_truck"),
+    ("volvo fmx", "dump_truck"), ("iveco astra", "dump_truck"), ("howo", "dump_truck"),
+    # седельные тягачи
+    ("тягач", "semi_truck"), ("седельн", "semi_truck"), ("полуприц", "semi_truck"),
+    # спецтехника-вездеход по пересечёнке (общие марки — НИЖЕ специфичных выше)
+    ("краз", "offroad_special"), ("урал", "offroad_special"), ("вездеход", "offroad_special"),
+    # автобусы/бортовые/легковые
+    ("автобус", "bus"), ("паз", "bus"), ("вахтов", "bus"),
+    ("газель", "truck"), ("бортов", "truck"),
+    ("prado", "car"), ("прадо", "car"), ("hilux", "car"), ("пикап", "car"), ("легков", "car"),
 ]
+
+
+def classify_from_name(name: Optional[str]) -> str:
+    """Тип по одному имени ТС (без полного VehicleMetrics) — по `_NAME_HINTS`.
+
+    Нет совпадения → "other". Для карточки достаточно имени; кинематический
+    фолбэк остаётся в `classify_auto` (когда есть метрики)."""
+    n = (name or "").lower()
+    for hint, key in _NAME_HINTS:
+        if hint in n:
+            return key
+    return "other"
 
 
 def profile(key: Optional[str]) -> TypeProfile:
@@ -127,15 +190,17 @@ def label(key: Optional[str]) -> str:
 
 def classify_auto(vm: VehicleMetrics) -> str:
     """Авто-классификация типа по названию и кинематике (когда нет паспорта)."""
-    name = (vm.name or "").lower()
-    for hint, key in _NAME_HINTS:
-        if hint in name:
-            return key
+    by_name = classify_from_name(vm.name)
+    if by_name != "other":
+        return by_name
 
     # По кинематике: соотношение пробег/моточас и макс. скорость.
     eng = vm.engine_hours or 0.0
-    km_per_h = (vm.mileage_km or 0.0) / eng if eng > 0 else None
+    km = vm.mileage_km or 0.0
+    km_per_h = km / eng if eng > 0 else None
     max_speed = vm.max_speed_kmh or 0.0
+    if eng > 0 and km < 1 and max_speed < 10:
+        return "drill_rig"        # стоит на месте, работает двигателем — буровая/компрессор
     if max_speed and max_speed < 20:
         return "excavator"        # почти не ездит
     if km_per_h is not None and km_per_h < 3 and eng > 0:

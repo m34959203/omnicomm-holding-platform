@@ -546,12 +546,14 @@ def _vehicle_guard(request: Request, terminal_id: str) -> None:
 @app.get("/api/vehicle/{terminal_id}")
 def vehicle_card(request: Request, terminal_id: str,
                  start_ts: Optional[int] = Query(None),
-                 end_ts: Optional[int] = Query(None)) -> dict:
-    """Карточка ТС (live): трек + ряд скорости. Быстро (~1-2с). По умолчанию — 1 сутки."""
+                 end_ts: Optional[int] = Query(None),
+                 name: Optional[str] = Query(None)) -> dict:
+    """Карточка ТС (live): трек + ряд скорости. Быстро (~1-2с). По умолчанию — 1 сутки.
+    `name` (с фронта) → тип агрегата + референс модели для адаптивной карточки."""
     _vehicle_guard(request, terminal_id)
     start, end = _veh_window(start_ts, end_ts)
     try:
-        return vehicle.track_detail(terminal_id, start, end)
+        return vehicle.track_detail(terminal_id, start, end, name=name)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"Omnicomm недоступен: {exc}")
 
