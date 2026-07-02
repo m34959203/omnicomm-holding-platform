@@ -160,10 +160,28 @@ _NAME_HINTS: list[tuple[str, str]] = [
     ("тягач", "semi_truck"), ("седельн", "semi_truck"), ("полуприц", "semi_truck"),
     # спецтехника-вездеход по пересечёнке (общие марки — НИЖЕ специфичных выше)
     ("краз", "offroad_special"), ("урал", "offroad_special"), ("вездеход", "offroad_special"),
-    # автобусы/бортовые/легковые
-    ("автобус", "bus"), ("паз", "bus"), ("вахтов", "bus"),
-    ("газель", "truck"), ("бортов", "truck"),
-    ("prado", "car"), ("прадо", "car"), ("hilux", "car"), ("пикап", "car"), ("легков", "car"),
+    # землеройная спецтехника по марке (до общих грузовых марок)
+    ("hidromek", "excavator"), ("jcb", "excavator"), ("hyundai r", "excavator"),
+    ("бульдозер", "loader"), ("shantui", "loader"), ("wheel loader", "loader"),
+    ("б10", "loader"), ("т-170", "loader"), ("т-130", "loader"),
+    # автобусы по марке
+    ("автобус", "bus"), ("паз", "bus"), ("вахтов", "bus"), ("ankai", "bus"),
+    ("yutong", "bus"), ("higer", "bus"), ("kavz", "bus"), ("маз-103", "bus"),
+    # грузовые/самосвалы по марке (общие марки — НИЖЕ специфичных моделей выше)
+    ("камаз", "truck"), ("зил", "truck"), ("маз", "truck"), ("газель", "truck"),
+    ("газон", "truck"), ("бортов", "truck"), ("dongfeng", "truck"), ("foton", "truck"),
+    ("faw", "truck"), ("unimog", "truck"), ("hyundai hd", "truck"), ("isuzu", "truck"),
+    ("hino", "truck"), ("volvo", "truck"),
+    # заправщики/бензовозы (доп. марочные — ADR)
+    ("топливоз", "tanker"), ("автоцистерн", "tanker"),
+    # легковые/внедорожники/пикапы по марке
+    ("prado", "car"), ("прадо", "car"), ("land cruiser", "car"), ("hilux", "car"),
+    ("l200", "car"), ("уаз", "car"), ("нива", "car"), ("niva", "car"),
+    ("toyota", "car"), ("mitsubishi", "car"), ("nissan", "car"), ("hyundai", "car"),
+    ("hyunday", "car"), ("kia", "car"), ("changan", "car"), ("ssangyong", "car"),
+    ("chevrolet", "car"), ("lada", "car"), ("ваз", "car"), ("skoda", "car"),
+    ("jac", "car"), ("staria", "car"), ("пикап", "car"), ("pickup", "car"),
+    ("легков", "car"), ("внедорож", "car"),
 ]
 
 
