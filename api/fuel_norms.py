@@ -18,7 +18,7 @@ import os
 from collections import defaultdict
 from typing import Optional
 
-from omnicomm_report import classify, geozones
+from omnicomm_report import classify, geozones, vehicle_types
 
 from . import raw_store
 
@@ -128,6 +128,19 @@ def build_fuel_norms(
         if nmh and float(nmh) > 0:
             a["norm_mh"] = max(a["norm_mh"], float(nmh))
 
+    # Имена ТС: в архивных суточных строках `vehicleName` НЕТ (consolidatedReport не
+    # несёт имени) → без обогащения строки шли с голым terminal_id, а классификация
+    # маркера типа (по имени) не работала. Берём имена из последнего снапшота.
+    name_map: dict[str, str] = {}
+    try:
+        from . import cache
+        for fr in ((cache.latest_snapshot() or {}).get("fleet_table") or {}).get("rows", []):
+            vid, vname = fr.get("vehicle_id"), fr.get("vehicle")
+            if vid and vname:
+                name_map[str(vid)] = vname
+    except Exception:  # noqa: BLE001 — имена не валят топливную форму
+        name_map = {}
+
     book = load_norm_book()
     rows: list[dict] = []
     with_norm = 0
@@ -136,21 +149,30 @@ def build_fuel_norms(
     for tid, a in agg.items():
         if allowed is not None and tid not in allowed:
             continue
-        name = a["name"] or tid
+        name = a["name"] or name_map.get(tid) or tid
         transport = classify.is_transport(name)
         mil = a["mil"]
+        # ЖЁСТКИЙ МАРКЕР ТИПА (директор, 02.07): моточасная техника (ДЭС/компрессоры/
+        # трактора/бульдозеры/грейдеры) НИКОГДА не попадает в л/100 км, дорожная —
+        # НИКОГДА в л/моточас; электрическая (primary "none") — вне топливной аналитики
+        # вообще (ГСМ не потребляет). Активностные пороги MIN_KM/MIN_MH остаются
+        # вторым гейтом внутри разрешённой маркером метрики.
+        vt_key = vehicle_types.classify_from_name(name)
+        pm = vehicle_types.profile(vt_key).primary_metric   # l_per_mh|l_per_100km|both|none
+        km_allowed = pm in ("l_per_100km", "both")
+        mh_allowed = pm in ("l_per_mh", "both")
         # факт л/100 достоверен только для транспорта с реальным пробегом (вентиль доверия).
         # Верхний кап MAX_L100: значения выше — топливозаправщики/ёмкости (fuelConsumption =
         # выданное топливо) или моточасная техника, где л/100 бессмыслен → «—».
         moto_h = a["worked_s"] / 3600
         # --- дорожная норма (л/100) ---
-        rate_ok = transport and mil >= MIN_KM and a["fuel"] > 0
+        rate_ok = transport and km_allowed and mil >= MIN_KM and a["fuel"] > 0
         fact = round(a["fuel"] / mil * 100, 1) if rate_ok else None
         if fact is not None and fact > MAX_L100:
             fact = None
         norm, norm_src = _resolve_norm(book, tid, name, a["norm"])
         # --- моточасная норма (л/мч) для спецтехники ---
-        mh_ok = transport and moto_h >= MIN_MH and a["fuel"] > 0
+        mh_ok = transport and mh_allowed and moto_h >= MIN_MH and a["fuel"] > 0
         fact_mh = round(a["fuel"] / moto_h, 1) if mh_ok else None
         if fact_mh is not None and fact_mh > MAX_LMH:
             fact_mh = None
@@ -172,6 +194,7 @@ def build_fuel_norms(
                 econ_l_total += -over_l
         rows.append({
             "vehicleId": tid, "vehicle": name, "transport": transport,
+            "vehicle_type": vt_key, "metric_scope": pm,
             "mileage_km": round(mil), "moto_h": round(moto_h, 1),
             "fuel_l": round(a["fuel"]),
             "fact_l100": fact, "norm_l100": norm,

@@ -62,6 +62,13 @@ export const CARD_SCHEMA: Record<string, CardSchema> = {
     sections: ["maint", "tyres", "speeding"], chart: true },
   compressor: { primary: "lPerMh", mapWeight: "compact", online: STATIC_ONLINE,
     telemetry: ["engHours", "fuel", "lPerMh", "fuelIdle"], sections: ["maint", "onsite"], chart: false },
+  // электрический компрессор: ГСМ не потребляет — топливных метрик НЕТ вовсе
+  compressor_electric: { primary: "engHours", mapWeight: "compact",
+    online: ["voltage", "ignition"],
+    telemetry: ["engHours"], sections: ["maint"], chart: false },
+  // ДЭС: обороты постоянные (50 Гц) — «топливо простоя» по оборотам неприменимо
+  des: { primary: "lPerMh", mapWeight: "compact", online: STATIC_ONLINE,
+    telemetry: ["engHours", "fuel", "lPerMh"], sections: ["maint"], chart: false },
   logging_station: { primary: "engHours", mapWeight: "full", online: MOBILE_ONLINE,
     telemetry: ["engHours", "mileage", "maxSpeed", "fuel"], sections: ["maint", "speeding"], chart: true },
   agp: { primary: "engHours", mapWeight: "compact", online: MOBILE_ONLINE,
